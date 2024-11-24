@@ -1,0 +1,9 @@
+/datasets
+/simplified-ab/processed_data/
+/simplified-ab/simplified_env/
+/simplified-ab/unprocessed/
+/simplified-ab/uploads/
+/venv/
+/simplified-ui/node_modules/
+.DS_Store
+
