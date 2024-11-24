@@ -65,7 +65,7 @@ def main():
     ]
     
     # Output file
-    output_file = "bundled_code.txt"
+    output_file = "./util/bundled_code.txt"
     
     # Remove existing output file if it exists
     if os.path.exists(output_file):

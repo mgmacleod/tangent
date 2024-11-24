@@ -224,7 +224,7 @@ export function TangentLogo() {
                 >
                   <div
                     className={cn(
-                      "font-sans text-[24px] font-bold w-full h-full flex items-center justify-center",
+                      "font-sans text-[24px] font-bold w-full h-full ps-4 flex items-center justify-center",
                       "text-foreground dark:text-foreground"
                     )}
                   >
