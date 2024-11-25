@@ -182,12 +182,6 @@ const ModelsModal = ({
 
   if (!isOpen) return null;
 
-  const handlePullModel = async (modelName, tag = "latest") => {
-    const fullModelName = `${modelName}:${tag}`;
-    setPullModelName(fullModelName);
-    onPullModel(fullModelName);
-  };
-
   return (
     <AnimatePresence>
       {isOpen && (
@@ -214,9 +208,9 @@ const ModelsModal = ({
               dragElastic={0.3}
               dragMomentum={false}
               onDragEnd={handleDragEnd}
-              initial={{ y: window.innerHeight, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: window.innerHeight, opacity: 0 }}
+              initial={{ y: window.innerHeight }}
+              animate={{ y: 0 }}
+              exit={{ y: window.innerHeight }}
               transition={{
                 type: "spring",
                 damping: 25,
@@ -228,7 +222,6 @@ const ModelsModal = ({
                 <div className="group flex justify-center py-2 cursor-grab active:cursor-grabbing">
                   <div className="w-12 h-1.5 bg-foreground/20 rounded-full transition-colors group-hover:bg-foreground/40" />
                 </div>
-
                 <div className="container max-w-6xl mx-auto pb-6 px-4">
                   <CardHeader className="flex items-center justify-between pb-3">
                     <div className="flex items-center gap-2">
@@ -249,296 +242,98 @@ const ModelsModal = ({
                       </Button>
                     </div>
                   </CardHeader>
-
                   <CardContent>
                     <Tabs value={activeTab} onValueChange={setActiveTab}>
-                      <TabsList className="grid w-full grid-cols-2 mb-4">
+                      <TabsList className="grid w-full grid-cols-3 mb-4">
                         <TabsTrigger value="local">Local Models</TabsTrigger>
                         <TabsTrigger value="library">Model Library</TabsTrigger>
+                        <TabsTrigger value="management">Management</TabsTrigger>
                       </TabsList>
-
                       <TabsContent value="local" className="mt-0">
-                        <div className="flex flex-col md:flex-row md:space-x-4">
-                          {/* Text Models Section */}
-                          <div className="flex-1 space-y-3">
-                            <div className="flex items-center gap-2">
-                              <Terminal className="h-4 w-4" />
-                              <h3 className="text-sm font-medium">
-                                Text Models
-                              </h3>
-                              <Badge variant="outline" className="ml-auto">
-                                {categorizedModels.text.length}
-                              </Badge>
+                        <ScrollArea className="h-[calc(85vh-250px)]">
+                          <div className="flex flex-col md:flex-row md:space-x-4">
+                            {/* Text Models Section */}
+                            <div className="flex-1 space-y-3">
+                              <div className="flex items-center gap-2">
+                                <Terminal className="h-4 w-4" />
+                                <h3 className="text-sm font-medium">Text Models</h3>
+                                <Badge variant="outline" className="ml-auto">
+                                  {categorizedModels.text.length}
+                                </Badge>
+                              </div>
+                              <div className="space-y-4">
+                                {categorizedModels.text.map((model) => (
+                                  <ModelCard
+                                    key={model.name}
+                                    model={model}
+                                    modelType="text"
+                                    detailedView={detailedView}
+                                    onInfoClick={onModelClick}
+                                    onDeleteClick={onDeleteModel}
+                                    isRunning={runningModels.some(
+                                      (m) => m.name === model.name
+                                    )}
+                                  />
+                                ))}
+                              </div>
                             </div>
-                            <div className="space-y-4">
-                              {categorizedModels.text.map((model) => (
-                                <ModelCard
-                                  key={model.name}
-                                  model={model}
-                                  modelType="text"
-                                  detailedView={detailedView}
-                                  onInfoClick={onModelClick}
-                                  onDeleteClick={onDeleteModel}
-                                  isRunning={runningModels.some(
-                                    (m) => m.name === model.name
-                                  )}
-                                />
-                              ))}
-                            </div>
-                          </div>
 
-                          {/* Vision Models Section */}
-                          <div className="flex-1 space-y-3 mt-6 md:mt-0">
-                            <div className="flex items-center gap-2">
-                              <Eye className="h-4 w-4" />
-                              <h3 className="text-sm font-medium">
-                                Vision Models
-                              </h3>
-                              <Badge variant="outline" className="ml-auto">
-                                {categorizedModels.vision.length}
-                              </Badge>
+                            {/* Vision Models Section */}
+                            <div className="flex-1 space-y-3 mt-6 md:mt-0">
+                              <div className="flex items-center gap-2">
+                                <Eye className="h-4 w-4" />
+                                <h3 className="text-sm font-medium">Vision Models</h3>
+                                <Badge variant="outline" className="ml-auto">
+                                  {categorizedModels.vision.length}
+                                </Badge>
+                              </div>
+                              <div className="space-y-4">
+                                {categorizedModels.vision.map((model) => (
+                                  <ModelCard
+                                    key={model.name}
+                                    model={model}
+                                    modelType="vision"
+                                    detailedView={detailedView}
+                                    onInfoClick={onModelClick}
+                                    onDeleteClick={onDeleteModel}
+                                    isRunning={runningModels.some(
+                                      (m) => m.name === model.name
+                                    )}
+                                  />
+                                ))}
+                              </div>
                             </div>
-                            <div className="space-y-4">
-                              {categorizedModels.vision.map((model) => (
-                                <ModelCard
-                                  key={model.name}
-                                  model={model}
-                                  modelType="vision"
-                                  detailedView={detailedView}
-                                  onInfoClick={onModelClick}
-                                  onDeleteClick={onDeleteModel}
-                                  isRunning={runningModels.some(
-                                    (m) => m.name === model.name
-                                  )}
-                                />
-                              ))}
-                            </div>
-                          </div>
 
-                          {/* Embedding Models Section */}
-                          <div className="flex-1 space-y-3 mt-6 md:mt-0">
-                            <div className="flex items-center gap-2">
-                              <Network className="h-4 w-4" />
-                              <h3 className="text-sm font-medium">
-                                Embedding Models
-                              </h3>
-                              <Badge variant="outline" className="ml-auto">
-                                {categorizedModels.embeddings.length}
-                              </Badge>
-                            </div>
-                            <div className="space-y-4">
-                              {categorizedModels.embeddings.map((model) => (
-                                <ModelCard
-                                  key={model.name}
-                                  model={model}
-                                  modelType="embedding"
-                                  detailedView={detailedView}
-                                  onInfoClick={onModelClick}
-                                  onDeleteClick={onDeleteModel}
-                                  isRunning={runningModels.some(
-                                    (m) => m.name === model.name
-                                  )}
-                                />
-                              ))}
+                            {/* Embedding Models Section */}
+                            <div className="flex-1 space-y-3 mt-6 md:mt-0">
+                              <div className="flex items-center gap-2">
+                                <Network className="h-4 w-4" />
+                                <h3 className="text-sm font-medium">
+                                  Embedding Models
+                                </h3>
+                                <Badge variant="outline" className="ml-auto">
+                                  {categorizedModels.embeddings.length}
+                                </Badge>
+                              </div>
+                              <div className="space-y-4">
+                                {categorizedModels.embeddings.map((model) => (
+                                  <ModelCard
+                                    key={model.name}
+                                    model={model}
+                                    modelType="embedding"
+                                    detailedView={detailedView}
+                                    onInfoClick={onModelClick}
+                                    onDeleteClick={onDeleteModel}
+                                    isRunning={runningModels.some(
+                                      (m) => m.name === model.name
+                                    )}
+                                  />
+                                ))}
+                              </div>
                             </div>
                           </div>
-                        </div>
-
-                        {/* Model Actions */}
-                        <Separator className="my-6" />
-                        <div className="space-y-6">
-                          {/* Pull Model Section */}
-                          <div className="space-y-3">
-                            <div className="flex items-center gap-2">
-                              <RefreshCw className="h-4 w-4" />
-                              <h3 className="text-sm font-medium">
-                                Pull a Model
-                              </h3>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Input
-                                placeholder="Model name (e.g., llama2)"
-                                value={pullModelName}
-                                onChange={(e) =>
-                                  setPullModelName(e.target.value)
-                                }
-                                className="flex-1"
-                              />
-                              <Button
-                                size="icon"
-                                onClick={onPullModel}
-                                disabled={isPulling}
-                              >
-                                {isPulling ? (
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : (
-                                  <RefreshCw className="h-4 w-4" />
-                                )}
-                              </Button>
-                            </div>
-                            {pullStatus && (
-                              <p className="text-sm text-muted-foreground">
-                                {pullStatus}
-                              </p>
-                            )}
-                          </div>
-
-                          {/* Create Model Section */}
-                          <div className="space-y-3">
-                            <div className="flex items-center gap-2">
-                              <Plus className="h-4 w-4" />
-                              <h3 className="text-sm font-medium">
-                                Create a Model
-                              </h3>
-                            </div>
-                            <div className="space-y-2">
-                              <Input
-                                placeholder="Model name"
-                                value={createModelName}
-                                onChange={(e) =>
-                                  setCreateModelName(e.target.value)
-                                }
-                              />
-                              <Textarea
-                                placeholder="Modelfile content"
-                                value={createModelFile}
-                                onChange={(e) =>
-                                  setCreateModelFile(e.target.value)
-                                }
-                              />
-                              <Button
-                                onClick={handleCreateModel}
-                                disabled={isCreating}
-                              >
-                                {isCreating ? (
-                                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                                ) : null}
-                                Create Model
-                              </Button>
-                            </div>
-                            {createStatus && (
-                              <p className="text-sm text-muted-foreground">
-                                {createStatus}
-                              </p>
-                            )}
-                          </div>
-
-                          {/* Copy Model Section */}
-                          <div className="space-y-3">
-                            <div className="flex items-center gap-2">
-                              <Copy className="h-4 w-4" />
-                              <h3 className="text-sm font-medium">
-                                Copy a Model
-                              </h3>
-                            </div>
-                            <div className="space-y-2">
-                              <Input
-                                placeholder="Source model"
-                                value={copySourceModel}
-                                onChange={(e) =>
-                                  setCopySourceModel(e.target.value)
-                                }
-                              />
-                              <Input
-                                placeholder="Destination model"
-                                value={copyDestinationModel}
-                                onChange={(e) =>
-                                  setCopyDestinationModel(e.target.value)
-                                }
-                              />
-                              <Button
-                                onClick={handleCopyModel}
-                                disabled={isCopying}
-                              >
-                                {isCopying ? (
-                                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                                ) : null}
-                                Copy Model
-                              </Button>
-                            </div>
-                            {copyStatus && (
-                              <p className="text-sm text-muted-foreground">
-                                {copyStatus}
-                              </p>
-                            )}
-                          </div>
-
-                          {/* Push Model Section */}
-                          <div className="space-y-3">
-                            <div className="flex items-center gap-2">
-                              <Upload className="h-4 w-4" />
-                              <h3 className="text-sm font-medium">
-                                Push a Model
-                              </h3>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Input
-                                placeholder="Model name (e.g., namespace/model:tag)"
-                                value={pushModelName}
-                                onChange={(e) =>
-                                  setPushModelName(e.target.value)
-                                }
-                                className="flex-1"
-                              />
-                              <Button
-                                onClick={handlePushModel}
-                                disabled={isPushing}
-                              >
-                                {isPushing ? (
-                                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                                ) : null}
-                                Push Model
-                              </Button>
-                            </div>
-                            {pushStatus && (
-                              <p className="text-sm text-muted-foreground">
-                                {pushStatus}
-                              </p>
-                            )}
-                          </div>
-
-                          {/* Generate Embeddings Section */}
-                          <div className="space-y-3">
-                            <div className="flex items-center gap-2">
-                              <Cpu className="h-4 w-4" />
-                              <h3 className="text-sm font-medium">
-                                Generate Embeddings
-                              </h3>
-                            </div>
-                            <div className="space-y-2">
-                              <Input
-                                placeholder="Embedding model name"
-                                value={embeddingModelName}
-                                onChange={(e) =>
-                                  setEmbeddingModelName(e.target.value)
-                                }
-                              />
-                              <Textarea
-                                placeholder="Input text"
-                                value={embeddingInput}
-                                onChange={(e) =>
-                                  setEmbeddingInput(e.target.value)
-                                }
-                              />
-                              <Button
-                                onClick={handleGenerateEmbeddings}
-                                disabled={isEmbedding}
-                              >
-                                {isEmbedding ? (
-                                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                                ) : null}
-                                Generate Embeddings
-                              </Button>
-                            </div>
-                            {embeddingStatus && (
-                              <p className="text-sm text-muted-foreground">
-                                {embeddingStatus}
-                              </p>
-                            )}
-                          </div>
-                        </div>
+                        </ScrollArea>
                       </TabsContent>
-
                       <TabsContent value="library" className="mt-0">
                         <div className="space-y-6">
                           <div className="flex gap-4">
@@ -561,12 +356,8 @@ const ModelsModal = ({
                               <SelectContent>
                                 <SelectItem value="all">All Types</SelectItem>
                                 <SelectItem value="text">Text Models</SelectItem>
-                                <SelectItem value="vision">
-                                  Vision Models
-                                </SelectItem>
-                                <SelectItem value="embedding">
-                                  Embedding Models
-                                </SelectItem>
+                                <SelectItem value="vision">Vision Models</SelectItem>
+                                <SelectItem value="embedding">Embedding Models</SelectItem>
                               </SelectContent>
                             </Select>
                             <Button
@@ -611,9 +402,7 @@ const ModelsModal = ({
                                     }}
                                     modelType={model.type}
                                     detailedView={true}
-                                    onPullClick={() =>
-                                      handlePullModel(model.name)
-                                    }
+                                    onPullClick={() => onPullModel(model.name)}
                                     isLibraryModel={true}
                                   />
                                 ))}
@@ -630,6 +419,169 @@ const ModelsModal = ({
                             )}
                           </ScrollArea>
                         </div>
+                      </TabsContent>
+                      <TabsContent value="management" className="mt-0">
+                        <ScrollArea className="h-[calc(85vh-250px)]">
+                          <div className="space-y-6">
+                            {/* Pull Model Section */}
+                            <div className="space-y-3">
+                              <div className="flex items-center gap-2">
+                                <RefreshCw className="h-4 w-4" />
+                                <h3 className="text-sm font-medium">Pull a Model</h3>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Input
+                                  placeholder="Model name (e.g., llama2)"
+                                  value={pullModelName}
+                                  onChange={(e) => setPullModelName(e.target.value)}
+                                  className="flex-1"
+                                />
+                                <Button
+                                  size="icon"
+                                  onClick={() => onPullModel(pullModelName)}
+                                  disabled={isPulling}
+                                >
+                                  {isPulling ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <RefreshCw className="h-4 w-4" />
+                                  )}
+                                </Button>
+                              </div>
+                              {pullStatus && (
+                                <p className="text-sm text-muted-foreground">
+                                  {pullStatus}
+                                </p>
+                              )}
+                            </div>
+
+                            {/* Create Model Section */}
+                            <div className="space-y-3">
+                              <div className="flex items-center gap-2">
+                                <Plus className="h-4 w-4" />
+                                <h3 className="text-sm font-medium">Create a Model</h3>
+                              </div>
+                              <div className="space-y-2">
+                                <Input
+                                  placeholder="Model name"
+                                  value={createModelName}
+                                  onChange={(e) => setCreateModelName(e.target.value)}
+                                />
+                                <Textarea
+                                  placeholder="Modelfile content"
+                                  value={createModelFile}
+                                  onChange={(e) => setCreateModelFile(e.target.value)}
+                                />
+                                <Button onClick={handleCreateModel} disabled={isCreating}>
+                                  {isCreating ? (
+                                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                  ) : null}
+                                  Create Model
+                                </Button>
+                              </div>
+                              {createStatus && (
+                                <p className="text-sm text-muted-foreground">
+                                  {createStatus}
+                                </p>
+                              )}
+                            </div>
+
+                            {/* Copy Model Section */}
+                            <div className="space-y-3">
+                              <div className="flex items-center gap-2">
+                                <Copy className="h-4 w-4" />
+                                <h3 className="text-sm font-medium">Copy a Model</h3>
+                              </div>
+                              <div className="space-y-2">
+                                <Input
+                                  placeholder="Source model"
+                                  value={copySourceModel}
+                                  onChange={(e) => setCopySourceModel(e.target.value)}
+                                />
+                                <Input
+                                  placeholder="Destination model"
+                                  value={copyDestinationModel}
+                                  onChange={(e) => setCopyDestinationModel(e.target.value)}
+                                />
+                                <Button onClick={handleCopyModel} disabled={isCopying}>
+                                  {isCopying ? (
+                                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                  ) : null}
+                                  Copy Model
+                                </Button>
+                              </div>
+                              {copyStatus && (
+                                <p className="text-sm text-muted-foreground">
+                                  {copyStatus}
+                                </p>
+                              )}
+                            </div>
+
+                            {/* Push Model Section */}
+                            <div className="space-y-3">
+                              <div className="flex items-center gap-2">
+                                <Upload className="h-4 w-4" />
+                                <h3 className="text-sm font-medium">Push a Model</h3>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Input
+                                  placeholder="Model name (e.g., namespace/model:tag)"
+                                  value={pushModelName}
+                                  onChange={(e) => setPushModelName(e.target.value)}
+                                  className="flex-1"
+                                />
+                                <Button onClick={handlePushModel} disabled={isPushing}>
+                                  {isPushing ? (
+                                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                  ) : null}
+                                  Push Model
+                                </Button>
+                              </div>
+                              {pushStatus && (
+                                <p className="text-sm text-muted-foreground">
+                                  {pushStatus}
+                                </p>
+                              )}
+                            </div>
+
+                            {/* Generate Embeddings Section */}
+                            <div className="space-y-3">
+                              <div className="flex items-center gap-2">
+                                <Cpu className="h-4 w-4" />
+                                <h3 className="text-sm font-medium">
+                                  Generate Embeddings
+                                </h3>
+                              </div>
+                              <div className="space-y-2">
+                                <Input
+                                  placeholder="Embedding model name"
+                                  value={embeddingModelName}
+                                  onChange={(e) => setEmbeddingModelName(e.target.value)}
+                                />
+                                <Textarea
+                                  placeholder="Input text"
+                                  value={embeddingInput}
+                                  onChange={(e) => setEmbeddingInput(e.target.value)}
+                                />
+                                <Button
+                                  onClick={handleGenerateEmbeddings}
+                                  disabled={isEmbedding}
+                                >
+                                  {isEmbedding ? (
+                                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                  ) : null}
+                                  Generate Embeddings
+                                </Button>
+                              </div>
+                              {embeddingStatus && (
+                                <p className="text-sm text-muted-foreground">
+                                  {embeddingStatus}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </ScrollArea>
+
                       </TabsContent>
                     </Tabs>
                   </CardContent>

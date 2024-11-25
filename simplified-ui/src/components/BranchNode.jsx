@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
 import { Card } from './ui/card';
-import {
-    Badge,
-} from "./index";
+import { Badge } from "./index";
 import { ChevronDown, ChevronUp, X, PlusCircle, MessageCircle } from 'lucide-react';
 import { RecordingButton } from './RecordingButton';
 import { cn } from './lib/utils';
@@ -19,25 +17,17 @@ const calculateMessageOffset = (messages, index) => {
     ), 100);
 };
 
-const ExpandButton = ({ isExpanded, onClick }) => {
-    return (
-        <button
-            onClick={onClick}
-            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-        >
-            {isExpanded ? (
-                <>
-                    <ChevronUp size={14} />
-                </>
-            ) : (
-                <>
-                    <ChevronDown size={14} />
-                </>
-            )}
-        </button>
-    );
-};
-
+const ExpandButton = ({ isExpanded, onClick }) => (
+    <button
+        onClick={(e) => {
+            e.stopPropagation();
+            onClick();
+        }}
+        className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+    >
+        {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+    </button>
+);
 
 export const BranchNode = ({
     node,
@@ -50,7 +40,9 @@ export const BranchNode = ({
     onDragStart,
     onCreateBranch,
     selectedModel,
-    style
+    currentMessageIndex,
+    style,
+    branchId // Add this prop
 }) => {
     const [isRecording, setIsRecording] = useState(null);
     const [expandedMessage, setExpandedMessage] = useState(null);
@@ -64,20 +56,7 @@ export const BranchNode = ({
                     model: selectedModel,
                     messages: [...node.messages, { role: 'user', content: message }],
                     stream: false,
-                    options: {
-                        temperature: 0.6,
-                        num_ctx: 8192,
-                        use_mmap: true,
-                        mirostat: 1,
-                        mirostat_tau: 0.8,
-                        mirostat_eta: 0.6,
-                        top_k: 20,
-                        top_p: 0.9,
-                        min_p: 0.0,
-                        tfs_z: 0.5,
-                        typical_p: 0.7,
-                        num_predict: 100,
-                    }
+                    options: {}
                 })
             });
             const data = await response.json();
@@ -86,28 +65,6 @@ export const BranchNode = ({
             console.error('Error sending message:', error);
             return null;
         }
-    };
-
-    const handleTranscriptionComplete = async (transcript, index) => {
-        setIsRecording(null);
-        if (!transcript.trim()) return;
-
-        const messages = [
-            ...node.messages.slice(0, index + 1),
-            { role: 'user', content: transcript }
-        ];
-
-        const aiResponse = await sendMessageToLLM(transcript);
-        if (aiResponse) {
-            messages.push(aiResponse);
-        }
-
-        onCreateBranch(node.id, index, {
-            x: node.x + 300,
-            y: node.y + calculateMessageOffset(node.messages, index) - 60,
-            initialMessage: transcript,
-            messages: messages
-        });
     };
 
     const getThreadInfo = () => {
@@ -126,33 +83,60 @@ export const BranchNode = ({
         return threadChain;
     };
 
-    const threadInfo = getThreadInfo();
-    const mainColor = threadInfo[threadInfo.length - 1].color;
+    const handleTranscriptionComplete = async (transcript, index) => {
+        setIsRecording(null);
+        if (!transcript.trim()) return;
+
+        const messages = [
+            ...node.messages.slice(0, index + 1),
+            { role: 'user', content: transcript }
+        ];
+
+        const aiResponse = await sendMessageToLLM(transcript);
+        if (aiResponse) {
+            messages.push(aiResponse);
+        }
+
+        const newPosition = {
+            x: node.x + 300,
+            y: node.y + calculateMessageOffset(node.messages, index) - 60
+        };
+
+        onCreateBranch(node.id, index, {
+            ...newPosition,
+            initialMessage: transcript,
+            messages: messages,
+            branchId: `${node.branchId || '0'}.${index}` // Create hierarchical branch IDs
+        });
+    };
 
     const getMessageStyles = (index, totalMessages) => {
-        const progress = ((index + 1) / totalMessages) * 100;
+        const threadInfo = getThreadInfo();
+        const mainColor = threadInfo[threadInfo.length - 1].color;
 
         return {
             background: `linear-gradient(to right, ${mainColor}10, ${mainColor}25)`,
             borderLeft: `4px solid ${mainColor}`,
             borderRadius: '0.5rem',
             position: 'relative',
-            '&::before': {
-                content: '""',
-                position: 'absolute',
-                left: 0,
-                top: 0,
-                height: '100%',
-                width: `${progress}%`,
-                background: `${mainColor}15`,
-                zIndex: 0,
-                transition: 'width 0.3s ease'
-            }
+            transition: 'box-shadow 0.3s ease',
+            boxShadow: currentMessageIndex === index ? `0 0 10px 2px ${mainColor}` : 'none',
         };
     };
 
+    const threadInfo = getThreadInfo();
+    const mainColor = threadInfo[threadInfo.length - 1].color;
+
+    // Generate a unique key for the node
+    const nodeKey = `node-${node.id}-${branchId || '0'}`;
+
     return (
-        <div className="absolute transition-all duration-200" style={style} data-node-id={node.id}>
+        <div
+            className="absolute transition-all duration-200"
+            style={style}
+            data-node-id={node.id}
+            key={nodeKey}
+        >
             <Card
                 className={cn(
                     "branch-node relative",
@@ -164,7 +148,8 @@ export const BranchNode = ({
                 )}
                 style={{
                     borderColor: mainColor,
-                    maxWidth: '600px'
+                    maxWidth: '600px',
+                    transform: style?.transform || 'none' // Ensure transform is applied
                 }}
                 onClick={(e) => {
                     e.stopPropagation();
@@ -225,7 +210,10 @@ export const BranchNode = ({
                             {node.messages.map((msg, i) => (
                                 <div
                                     key={i}
-                                    className="relative group"
+                                    className={cn(
+                                        "relative group",
+                                        currentMessageIndex === i && "ring-2 ring-primary" // Additional highlight class
+                                    )}
                                     style={getMessageStyles(i, node.messages.length)}
                                 >
                                     <div className="p-4 relative z-10">

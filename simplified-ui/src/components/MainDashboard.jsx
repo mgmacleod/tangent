@@ -83,7 +83,7 @@ const MainDashboard = ({ onConversationSelect }) => {  // Add this prop
     const [currentState, setCurrentState] = useState(null);
     const [, setAvailableStates] = useState([]);
     const [isLoadingState, setIsLoadingState] = useState(false);
-    const [chatType, setChatType] = useState('chatgpt');
+    const [chatType, setChatType] = useState('claude');
     const [delayedCluster, setDelayedCluster] = useState(null);
     const [visualizationType, setVisualizationType] = useState('star'); // 'star' or 'islands'
 
@@ -854,6 +854,128 @@ const MainDashboard = ({ onConversationSelect }) => {  // Add this prop
         };
     }
 
+    const buildConversationNodes = (responseData, chatTitle) => {
+        // Ensure we have valid response data
+        if (!responseData || !responseData.branches) {
+            console.error('Invalid response data structure');
+            return [];
+        }
+
+        const nodes = [];
+        let nodeIdCounter = 1;
+
+        // Map to keep track of message IDs to node IDs
+        const messageIdToNodeId = {};
+
+        // First, create nodes for each branch
+        Object.entries(responseData.branches).forEach(([branchId, messages]) => {
+            if (!Array.isArray(messages)) {
+                console.error(`Invalid messages for branch ${branchId}`);
+                return;
+            }
+
+            // Create formatted messages
+            const formattedMessages = messages.map((msg) => ({
+                role: msg.sender === 'human' ? 'user' : 'assistant',
+                content: msg.text,
+                messageId: msg.message_id,
+            }));
+
+            // Create node
+            const nodeId = nodeIdCounter++;
+            const node = {
+                id: nodeId,
+                title: chatTitle,
+                messages: formattedMessages,
+                type: 'branch',
+                parentId: null, // We'll set this later
+                parentMessageIndex: 0, // Adjust if needed
+                branchId: branchId,
+                x: 0,
+                y: 0,
+            };
+
+            nodes.push(node);
+
+            // Map message IDs to node IDs
+            formattedMessages.forEach((msg) => {
+                messageIdToNodeId[msg.messageId] = nodeId;
+            });
+        });
+
+        // Now set parentId for each node
+        nodes.forEach((node) => {
+            // For the main branch (branchId '0'), parentId is null
+            if (node.branchId === '0') {
+                node.parentId = null;
+            } else {
+                // For other branches, find the parent message's nodeId
+                const branchMessages = responseData.branches[node.branchId];
+                const firstMessage = branchMessages[0];
+                if (firstMessage.parent_message_id) {
+                    const parentNodeId = messageIdToNodeId[firstMessage.parent_message_id];
+                    if (parentNodeId) {
+                        node.parentId = parentNodeId;
+                    } else {
+                        console.warn(`Parent message ID ${firstMessage.parent_message_id} not found`);
+                    }
+                }
+            }
+        });
+
+        return nodes;
+    };
+
+
+    const handleConversationClick = async (point, event) => {
+        try {
+            // Calculate click position
+            let clickPosition = {
+                x: window.innerWidth / 2,
+                y: window.innerHeight / 2,
+            };
+
+            if (event?.target) {
+                const rect = event.target.getBoundingClientRect();
+                clickPosition = {
+                    x: rect.left + rect.width / 2,
+                    y: rect.top + rect.height / 2,
+                };
+            }
+
+            console.log('Attempting to fetch conversation:', point.title);
+
+            // Extract base chat title if it includes branch information
+            const baseChatTitle = point.title.replace(/ \(Branch \d+\)$/, '');
+
+            // Try both chat types
+            let messageData = await fetchAllMessages(baseChatTitle, 'claude');
+            if (!messageData || !messageData.branches) {
+                console.log('Claude fetch failed, trying ChatGPT...');
+                messageData = await fetchAllMessages(baseChatTitle, 'claude');
+            }
+
+            if (!messageData || !messageData.branches) {
+                console.error('Failed to fetch messages with either chat type');
+                return;
+            }
+
+            // Build conversation nodes
+            const nodes = buildConversationNodes(messageData, baseChatTitle);
+
+            if (nodes.length === 0) {
+                console.error('No nodes were created from the message data');
+                return;
+            }
+
+            console.log('Successfully built conversation nodes:', nodes);
+            onConversationSelect(nodes, clickPosition);
+
+        } catch (error) {
+            console.error('Error in conversation click handler:', error);
+        }
+    };
+
     const createVisualization = useCallback(() => {
         if (!data || !svgRef.current) return;
 
@@ -967,90 +1089,17 @@ const MainDashboard = ({ onConversationSelect }) => {  // Add this prop
     }
 
 
-    const handleConversationClick = async (point, event) => {
-        try {
-            let clickPosition = {
-                x: window.innerWidth / 2,
-                y: window.innerHeight / 2
-            };
 
-            if (event?.target) {
-                const rect = event.target.getBoundingClientRect();
-                clickPosition = {
-                    x: rect.left + rect.width / 2,
-                    y: rect.top + rect.height / 2
-                };
-            }
-
-            console.log('Attempting to fetch conversation:', point.title);
-
-            let messageData = await fetchAllMessages(point.title, 'claude');
-            if (!messageData) {
-                console.log('Claude fetch failed, trying ChatGPT...');
-                messageData = await fetchAllMessages(point.title, 'chatgpt');
-            }
-
-            if (!messageData) {
-                console.error('Failed to fetch messages with either chat type');
-                return;
-            }
-
-            const branches = messageData.branches;
-            const nodes = [];
-            const rootNodeId = 1; // Root node ID
-            const rootNode = {
-                id: rootNodeId,
-                title: point.title,
-                messages: [],
-                type: 'main',
-                x: 100,
-                y: 100
-            };
-            nodes.push(rootNode);
-
-            // Keep track of IDs to avoid duplicates
-            let nextNodeId = rootNodeId + 1;
-
-            for (const [branchId, branchMessages] of Object.entries(branches)) {
-                const formattedMessages = branchMessages.map(msg => ({
-                    role: msg.sender === 'human' ? 'user' : 'assistant',
-                    content: msg.text
-                }));
-
-                const node = {
-                    id: nextNodeId++,
-                    title: `${point.title} (Branch ${branchId})`,
-                    messages: formattedMessages,
-                    type: 'branch',
-                    cluster: point.cluster,
-                    hasReflection: point.hasReflection,
-                    parentId: rootNodeId,
-                    systemPrompt: '',
-                    parentMessageIndex: 0,
-                    branchId: branchId
-                };
-                nodes.push(node);
-            }
-
-            console.log('Successfully formatted conversation with branches:', nodes);
-
-            onConversationSelect(nodes, clickPosition);
-
-        } catch (error) {
-            console.error('Error in conversation click handler:', error);
-        }
-    };
-
-
-    const fetchAllMessages = async (title, chatType) => {
+    // Ensure this function fetches all messages, including branches
+    const fetchAllMessages = async (title, chatType = 'claude') => {
         const encodedTitle = encodeURIComponent(title);
         try {
             const response = await axios.get(
                 `http://127.0.0.1:5000/api/messages_all/${encodedTitle}?type=${chatType}`,
                 {
                     validateStatus: function (status) {
-                        return status < 500; // Handle 404s without throwing
-                    }
+                        return status < 500;
+                    },
                 }
             );
             if (response.status === 200) {
@@ -1058,7 +1107,7 @@ const MainDashboard = ({ onConversationSelect }) => {  // Add this prop
             }
             return null;
         } catch (error) {
-            console.error(`Error fetching with ${chatType}:`, error);
+            console.error(`Error fetching all messages:`, error);
             return null;
         }
     };

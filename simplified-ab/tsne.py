@@ -1073,6 +1073,51 @@ def fetch_and_store_models():
         print(f"Error fetching library models: {str(e)}")
         traceback.print_exc()
 
+def generate_shift_label(parent_messages, child_messages):
+    # Prepare the prompt
+    parent_text = "\n".join([f"{msg['sender']}: {msg['text']}" for msg in parent_messages])
+    child_text = "\n".join([f"{msg['sender']}: {msg['text']}" for msg in child_messages])
+
+    prompt = f"""Parent Conversation Snippet:
+{parent_text}
+
+Child Conversation Snippet:
+{child_text}
+
+Describe the shift in conversation direction in one concise label."""
+
+    # Call the LLM API
+    payload = {
+        'model': GENERATION_MODEL,
+        'prompt': prompt,
+        'stream': False,
+        'options': {
+            'temperature': 0.5
+        }
+    }
+
+    try:
+        response = requests.post(
+            'http://localhost:11434/api/generate',
+            json=payload,
+            headers={'Content-Type': 'application/json'}
+        )
+        if response.status_code == 200:
+            label = response.json()['response'].strip()
+            return label
+        else:
+            print(f"Error generating shift label: {response.status_code}, {response.text}")
+            return "Shift Label Generation Failed"
+    except Exception as e:
+        print(f"Error generating shift label: {str(e)}")
+        return "Error"
+
+
+def get_messages_around_index(messages, index, window=1):
+    start = max(0, index - window)
+    end = min(len(messages), index + window + 1)
+    return messages[start:end]
+
 # Function to start background tasks
 def start_background_tasks():
     # Start a background thread to fetch models

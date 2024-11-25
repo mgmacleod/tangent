@@ -56,19 +56,15 @@ const SharedHeader = ({
             <Share2 className="h-4 w-4" />
             Share
           </Button>
-        
-          {currentView === 'clusters' && (
-            <>
-              <Button
-                onClick={onNewThread}
-                variant="default"
-                className="gap-2"
-              >
-                <Plus className="h-4 w-4" />
-                New Thread
-              </Button>
-            </>
-          )}
+
+          <Button
+            onClick={onNewThread}
+            variant="default"
+            className="gap-2"
+          >
+            <Plus className="h-4 w-4" />
+            New Thread
+          </Button>
         </div>
       </div>
     </header>
@@ -221,18 +217,28 @@ export const IntegratedDashboard = () => {
     setShowModelsModal(true);
   }, []);
 
+
   const handleNewThread = useCallback(() => {
-    const newConversation = {
+    const newConversation = [{  // Changed to array of nodes
       id: Date.now(),
+      messages: [],
+      type: 'main',
+      title: 'Main Thread',
+      x: window.innerWidth / 4,
+      y: window.innerHeight / 3,
+      branchId: '0'
+    }, {
+      id: Date.now() + 1,
       messages: [],
       type: 'branch',
       title: 'New Thread',
       x: window.innerWidth / 2,
       y: window.innerHeight / 2,
-      parentId: 1,
+      parentId: Date.now(),
       systemPrompt: '',
-      parentMessageIndex: 0
-    };
+      parentMessageIndex: 0,
+      branchId: '0.0'
+    }];
 
     setSelectedConversation(newConversation);
     setLastThread(newConversation);
@@ -243,16 +249,29 @@ export const IntegratedDashboard = () => {
     setView('conversation');
   }, []);
 
+  const handleConversationSelect = useCallback((nodes, position) => {
+    // Ensure nodes have proper branch IDs
+    const processedNodes = nodes.map((node, index) => ({
+      ...node,
+      branchId: node.branchId || `${index}`,
+      // Ensure x/y coordinates are valid numbers
+      x: typeof node.x === 'number' ? node.x : position?.x || window.innerWidth / 2,
+      y: typeof node.y === 'number' ? node.y : position?.y || window.innerHeight / 2
+    }));
+
+    setSelectedConversation(processedNodes);
+    setLastThread(processedNodes);
+    setSelectedNodePosition(position || {
+      x: window.innerWidth / 2,
+      y: window.innerHeight / 2
+    });
+    setView('conversation');
+  }, []);
   const handleBack = useCallback(() => {
     setView('clusters');
   }, []);
 
-  const handleConversationSelect = useCallback((nodes, position) => {
-    setSelectedConversation(nodes);
-    setLastThread(nodes);
-    setSelectedNodePosition(position);
-    setView('conversation');
-  }, []);
+
 
   // Inside IntegratedDashboard.jsx return statement
   return (
@@ -263,7 +282,7 @@ export const IntegratedDashboard = () => {
           theme={theme}
           setTheme={setTheme}
           currentView={view}
-          handleBack={handleBack}
+          handleBack={() => setView('clusters')}
           onNewThread={handleNewThread}
           lastConversation={lastThread}
           onManageModels={handleManageModels}
@@ -288,7 +307,6 @@ export const IntegratedDashboard = () => {
         />
         <div className="flex-1 flex overflow-hidden">
           <div className="flex-1 flex flex-col overflow-hidden">
-
             <AnimatePresence mode="wait" initial={false}>
               {view === 'conversation' ? (
                 <motion.div
@@ -304,7 +322,13 @@ export const IntegratedDashboard = () => {
                     opacity: 1,
                     scale: 1,
                     x: 0,
-                    y: 0
+                    y: 0,
+                    transition: {
+                      type: "spring",
+                      stiffness: 300,
+                      damping: 30,
+                      mass: 0.8
+                    }
                   }}
                   exit={{
                     opacity: 0,
@@ -312,16 +336,11 @@ export const IntegratedDashboard = () => {
                     x: selectedNodePosition?.x ? selectedNodePosition.x - window.innerWidth / 2 : 0,
                     y: selectedNodePosition?.y ? selectedNodePosition.y - window.innerHeight / 2 : 0
                   }}
-                  transition={{
-                    type: "spring",
-                    stiffness: 300,
-                    damping: 30
-                  }}
                 >
                   <TangentChat
                     initialConversation={selectedConversation}
                     selectedNodePosition={selectedNodePosition}
-                    onBack={handleBack}
+                    onBack={() => setView('clusters')}
                   />
                 </motion.div>
               ) : (
@@ -329,13 +348,17 @@ export const IntegratedDashboard = () => {
                   key="dashboard"
                   className="absolute inset-12"
                   initial={{ opacity: 0, x: "-100%" }}
-                  animate={{ opacity: 1, x: "0%" }}
-                  exit={{ opacity: 0, x: "-100%" }}
-                  transition={{
-                    type: "spring",
-                    stiffness: 300,
-                    damping: 30
+                  animate={{
+                    opacity: 1,
+                    x: "0%",
+                    transition: {
+                      type: "spring",
+                      stiffness: 300,
+                      damping: 30,
+                      mass: 0.8
+                    }
                   }}
+                  exit={{ opacity: 0, x: "-100%" }}
                 >
                   <MainDashboard
                     onConversationSelect={handleConversationSelect}

@@ -135,6 +135,7 @@ const TangentChat = ({ initialConversation, selectedNodePosition, onBack }) => {
         y: node.y ?? selectedNodePosition?.y ?? 100,
       }));
     }
+    // Default to main thread if no initialConversation provided
     return [
       {
         id: 1,
@@ -148,7 +149,9 @@ const TangentChat = ({ initialConversation, selectedNodePosition, onBack }) => {
   });
 
 
+
   const [selectedNode, setSelectedNode] = useState(initialConversation?.id || 1);
+  const [focusedMessageIndex, setFocusedMessageIndex] = useState(0);
   const [expandedNodes, setExpandedNodes] = useState(new Set([initialConversation?.id]));
   const [inputValue, setInputValue] = useState(''); // Changed from input to inputValue
   const [activeTool, setActiveTool] = useState('pan');
@@ -159,7 +162,6 @@ const TangentChat = ({ initialConversation, selectedNodePosition, onBack }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [models, setModels] = useState([]);
   const [selectedModel, setSelectedModel] = useState('');
-  const [focusedMessageIndex, setFocusedMessageIndex] = useState(0);
   const [activeBranchIndex, setActiveBranchIndex] = useState(0);
   const [activeContext, setActiveContext] = useState({
     messages: [],
@@ -240,7 +242,6 @@ const TangentChat = ({ initialConversation, selectedNodePosition, onBack }) => {
 
   useEffect(() => {
     if (initialConversation && Array.isArray(initialConversation)) {
-      // Ensure each node has x and y coordinates
       const updatedNodes = initialConversation.map((node) => ({
         ...node,
         x: node.x ?? selectedNodePosition?.x ?? 400,
@@ -252,40 +253,6 @@ const TangentChat = ({ initialConversation, selectedNodePosition, onBack }) => {
     }
   }, [initialConversation, selectedNodePosition]);
 
-  
-  useEffect(() => {
-    if (initialConversation) {
-      // Auto-expand the conversation node after animation
-      setExpandedNodes(new Set([initialConversation.id]));
-      setSelectedNode(initialConversation.id);
-    }
-  }, [initialConversation]);
-
-
-  useEffect(() => {
-    if (initialConversation) {
-      // Create the initial context from the imported conversation
-      const initialContext = {
-        messages: initialConversation.messages || [],
-        systemPrompt: initialConversation.systemPrompt || systemPrompt,
-        parentChain: []
-      };
-      setActiveContext(initialContext);
-
-      // Set up the initial node with the conversation history
-      setNodes([{
-        id: 1,
-        messages: [],
-        x: 100,
-        y: 100,
-        type: 'main',
-        title: 'Main Thread'
-      }, {
-        ...initialConversation,
-        messages: initialConversation.messages || []
-      }]);
-    }
-  }, [initialConversation]);
   // Initialize with main thread
   useEffect(() => {
     if (nodes.length === 0) {
@@ -326,7 +293,20 @@ const TangentChat = ({ initialConversation, selectedNodePosition, onBack }) => {
     setTheme(newTheme);
   }, []);
 
-  const focusOnMessage = useCallback((nodeId, messageIndex) => {
+  const getIndicatorPosition = () => {
+    const node = nodes.find((n) => n.id === selectedNode);
+    if (!node || focusedMessageIndex === null) return null;
+
+    const messageOffset = 100 + focusedMessageIndex * 120; // Approximate message height
+    const x = node.x - 50; // Offset to the left of the `BranchNode`
+    const y = node.y + messageOffset;
+
+    return { x, y };
+  };
+
+  const indicatorPosition = getIndicatorPosition();
+
+  const focusOnMessage = useCallback((nodeId, messageIndex, zoomInClose = false) => {
     const node = nodes.find(n => n.id === nodeId);
     if (!node) return;
 
@@ -335,7 +315,7 @@ const TangentChat = ({ initialConversation, selectedNodePosition, onBack }) => {
 
     // Calculate message position within node
     const messageOffset = messageIndex * 120; // Approximate height per message
-    const messageY = node.y + 100 + messageOffset; // 100px is base node header height
+    const messageY = node.y + 300 + messageOffset; // 100px is base node header height
 
     // Center the canvas on the message
     const centerX = canvasRect.width / 2;
@@ -345,14 +325,14 @@ const TangentChat = ({ initialConversation, selectedNodePosition, onBack }) => {
     const newTranslateX = centerX - (node.x + 128) * scale;
     const newTranslateY = centerY - messageY * scale;
 
-    // Animate to new position
+    // Update translation
     setTranslate({
       x: newTranslateX,
       y: newTranslateY
     });
 
-    // Set zoom level
-    setScale(1);
+    // Set zoom level based on whether Shift is pressed
+    setScale(zoomInClose ? 2 : scale);
 
     // Expand the node if it's not already expanded
     if (!expandedNodes.has(nodeId)) {
@@ -363,6 +343,7 @@ const TangentChat = ({ initialConversation, selectedNodePosition, onBack }) => {
     setSelectedNode(nodeId);
     setFocusedMessageIndex(messageIndex);
   }, [nodes, scale, expandedNodes]);
+
 
   // Function to find connected nodes at current message
   const findConnectedNodes = useCallback((nodeId, messageIndex) => {
@@ -382,40 +363,6 @@ const TangentChat = ({ initialConversation, selectedNodePosition, onBack }) => {
 
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // Ignore if typing in input
-      if (document.activeElement.tagName === 'INPUT' ||
-        document.activeElement.tagName === 'TEXTAREA') return;
-
-      const key = e.key.toLowerCase();
-      if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(key)) {
-        e.preventDefault();
-        setPressedKeys(prev => new Set([...prev, key]));
-      }
-    };
-
-    const handleKeyUp = (e) => {
-      const key = e.key.toLowerCase();
-      if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(key)) {
-        setPressedKeys(prev => {
-          const next = new Set(prev);
-          next.delete(key);
-          return next;
-        });
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
-
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
-    };
-  }, []);
-
-
-  useEffect(() => {
-    const handleKeyDown = (e) => {
       // Ignore navigation shortcuts when typing
       const isTyping = document.activeElement.tagName === 'INPUT' ||
         document.activeElement.tagName === 'TEXTAREA';
@@ -428,30 +375,33 @@ const TangentChat = ({ initialConversation, selectedNodePosition, onBack }) => {
 
       const { left, right } = findConnectedNodes(selectedNode, focusedMessageIndex);
 
+      // Determine if Shift is pressed
+      const isShiftPressed = e.shiftKey;
+
       switch (e.key.toLowerCase()) {
         case 'w':
           if (focusedMessageIndex > 0) {
             setActiveBranchIndex(0);
-            focusOnMessage(selectedNode, focusedMessageIndex - 1);
+            focusOnMessage(selectedNode, focusedMessageIndex - 1, isShiftPressed);
           }
           break;
         case 's':
           if (focusedMessageIndex < currentNode.messages.length - 1) {
             setActiveBranchIndex(0);
-            focusOnMessage(selectedNode, focusedMessageIndex + 1);
+            focusOnMessage(selectedNode, focusedMessageIndex + 1, isShiftPressed);
           }
           break;
         case 'a':
           if (left) {
             const parentNode = nodes.find(n => n.id === left);
-            focusOnMessage(left, parentNode.parentMessageIndex || 0);
+            focusOnMessage(left, parentNode.parentMessageIndex || 0, isShiftPressed);
           }
           break;
         case 'd':
           if (right.length > 0) {
             const nextBranchIndex = (activeBranchIndex + 1) % right.length;
             setActiveBranchIndex(nextBranchIndex);
-            focusOnMessage(right[nextBranchIndex], 0);
+            focusOnMessage(right[nextBranchIndex], 0, isShiftPressed);
           }
           break;
       }
@@ -862,6 +812,10 @@ const TangentChat = ({ initialConversation, selectedNodePosition, onBack }) => {
 
 
   const organizeNodesIntoStack = useCallback(() => {
+    // Padding values to add space between threads
+    const THREAD_HORIZONTAL_PADDING = 100; // Extra horizontal space between levels
+    const THREAD_VERTICAL_PADDING = 50;    // Extra vertical space between nodes at the same level
+
     // Create a map to store each node's level (distance from root)
     const nodeLevels = new Map();
     const nodesByLevel = new Map();
@@ -883,7 +837,7 @@ const TangentChat = ({ initialConversation, selectedNodePosition, onBack }) => {
       }
       nodesByLevel.get(level).push(currentNode);
 
-      // Find all children of current node
+      // Find all children of the current node
       const children = nodes.filter(n => n.parentId === currentNode.id);
       children.forEach(child => {
         if (!nodeLevels.has(child.id)) {
@@ -901,8 +855,8 @@ const TangentChat = ({ initialConversation, selectedNodePosition, onBack }) => {
 
       return {
         ...node,
-        x: STACK_START_X + (level * STACK_SPACING_X),
-        y: STACK_START_Y + (indexAtLevel * STACK_SPACING_Y)
+        x: STACK_START_X + (level * (STACK_SPACING_X + THREAD_HORIZONTAL_PADDING)), // Add horizontal padding
+        y: STACK_START_Y + (indexAtLevel * (STACK_SPACING_Y + THREAD_VERTICAL_PADDING)) // Add vertical padding
       };
     });
 
@@ -926,6 +880,61 @@ const TangentChat = ({ initialConversation, selectedNodePosition, onBack }) => {
       });
     }
   }, [nodes, scale]);
+
+  const isValidPosition = (position) => {
+    return position &&
+      typeof position.x === 'number' &&
+      typeof position.y === 'number' &&
+      !isNaN(position.x) &&
+      !isNaN(position.y);
+  };
+
+  const getNodePosition = (node, isExpanded) => {
+    const baseHeight = 50; // Base height for collapsed node
+    const messageHeight = 120; // Height per message when expanded
+    const nodeHeight = isExpanded ? baseHeight + (node.messages.length * messageHeight) : baseHeight;
+
+    return {
+      x: node.x + 128, // Half of node width (256/2)
+      y: node.y + (nodeHeight / 2)
+    };
+  };
+
+  const createConnectionPath = (sourceNode, targetNode, expandedNodes) => {
+    const source = getNodePosition(sourceNode, expandedNodes.has(sourceNode.id));
+    const target = {
+      x: targetNode.x,
+      y: targetNode.y + (expandedNodes.has(targetNode.id) ?
+        targetNode.messages.length * 120 + 100 : 50)
+    };
+
+    if (!isValidPosition(source) || !isValidPosition(target)) {
+      return null;
+    }
+
+    const controlPointOffset = Math.abs(target.x - source.x) * 0.5;
+    return `M ${source.x},${source.y} ` +
+      `C ${source.x + controlPointOffset},${source.y} ` +
+      `${target.x - controlPointOffset},${target.y} ` +
+      `${target.x},${target.y}`;
+  };
+
+  // SVG Connection component
+  const Connection = ({ sourceNode, targetNode, expandedNodes }) => {
+    const path = createConnectionPath(sourceNode, targetNode, expandedNodes);
+    if (!path) return null;
+
+    return (
+      <path
+        d={path}
+        className="stroke-primary dark:stroke-primary"
+        strokeWidth="2"
+        fill="none"
+      />
+    );
+  };
+
+
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -1093,56 +1102,52 @@ const TangentChat = ({ initialConversation, selectedNodePosition, onBack }) => {
               pointerEvents: 'none'
             }}
           >
-            {/* Connection arrows */}
             {nodes.map((node) => {
               const parent = nodes.find(n => n.id === node.parentId);
               if (!parent) return null;
 
-              const source = {
-                x: parent.x + 128,
-                y: parent.y + (expandedNodes.has(parent.id) ? parent.messages.length * 120 + 100 : 50)
-              };
-              const target = {
-                x: node.x,
-                y: node.y + (expandedNodes.has(node.id) ? node.messages.length * 120 + 100 : 50)
-              };
+              const connectionKey = `connection-${parent.id}-${node.id}-${node.branchId || '0'}`;
 
               return (
-                <path
-                  key={`connection-${node.id}`}
-                  d={`M ${source.x},${source.y} C ${source.x + 100},${source.y} ${target.x - 100},${target.y} ${target.x},${target.y}`}
-                  className="stroke-primary dark:stroke-primary"
-                  strokeWidth="2"
-                  fill="none"
+                <Connection
+                  key={connectionKey}
+                  sourceNode={parent}
+                  targetNode={node}
+                  expandedNodes={expandedNodes}
                 />
               );
             })}
           </svg>
 
           {/* Node components */}
-          {nodes.map((node) => (
-            <BranchNode
-              key={node.id}
-              node={node}
-              nodes={nodes}
-              isExpanded={expandedNodes.has(node.id)}
-              isSelected={selectedNode === node.id}
-              onToggleExpand={() => handleToggleExpand(node.id)}
-              onSelect={() => setSelectedNode(node.id)}
-              onDelete={() => handleDeleteNode(node.id)}
-              onDragStart={handleDragStart}
-              isDragging={dragState.nodeId === node.id}
-              onCreateBranch={handleCreateBranch}
-              selectedModel={selectedModel}
-              style={{
-                position: 'absolute',
-                left: `${node.x}px`,
-                top: `${node.y}px`,
-                width: '256px',
-                zIndex: selectedNode === node.id ? 10 : 1
-              }}
-            />
-          ))}
+          {nodes.map((node) => {
+            const nodeKey = `node-${node.id}-${node.branchId || '0'}`;
+
+            return (
+              <BranchNode
+                key={nodeKey}
+                node={node}
+                nodes={nodes}
+                isExpanded={expandedNodes.has(node.id)}
+                isSelected={selectedNode === node.id}
+                onToggleExpand={() => handleToggleExpand(node.id)}
+                onSelect={() => setSelectedNode(node.id)}
+                onDelete={() => handleDeleteNode(node.id)}
+                onDragStart={handleDragStart}
+                onCreateBranch={handleCreateBranch}
+                selectedModel={selectedModel}
+                currentMessageIndex={node.id === selectedNode ? focusedMessageIndex : null}
+                branchId={node.branchId}
+                style={{
+                  position: 'absolute',
+                  left: `${node.x}px`,
+                  top: `${node.y}px`,
+                  width: '256px',
+                  zIndex: selectedNode === node.id ? 10 : 1
+                }}
+              />
+            );
+          })}
         </div>
       </div>
 

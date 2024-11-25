@@ -14,7 +14,7 @@ const ScrollButtons = ({
   if (!showScrollTop && !showScrollBottom) return null;
 
   return (
-    <div className="absolute right-8 bottom-4 flex flex-col gap-2 z-50">
+    <div className="absolute right-8 bottom-4 flex flex-col gap-2 z-20">
       {showScrollTop && (
         <button
           onClick={onScrollTop}
