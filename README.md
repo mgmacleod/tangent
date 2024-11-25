@@ -11,15 +11,21 @@ Tangent is a canvas for exploring AI conversations, treating each chat branch as
 
 </div>
 
-* Resurrect & Continue: Pick up conversations that hit Claude's context limit or were abandoned mid-thought
-* Branch & Explore: Split conversations at any point to test different approaches
-* Offline-First: Powered completely by local models (Ollama currenly but more planned)
-* Smart Merging: Combine the best parts of different conversation branches using LLMs
-* Topic Clustering: Group and filter conversations based on their learned topics.
-* Pattern Detection: Surface common topics and struggles across conversations
-* AI Reflections: Get insights on recurring themes and challenges
-* Archive Support: Supports Claude and ChatGPT data exports (more to come).
+- 🌟 Resurrect & Continue: Seamlessly resume conversations after reaching a prior context limit.
 
+- 🌿 Branch & Explore: Effortlessly create conversation forks at any point to test multiple approaches or ideas.
+
+- 💻 Offline-First: Fully powered by local models, leveraging Ollama with plans to expand support.
+
+- 🔗 Smart Merging: Intelligently combine the most valuable insights from various conversational branches using LLM-driven analysis.
+
+- 📂 Topic Clustering: Dynamically organize and filter conversations by their inferred topics, streamlining navigation.
+
+- 🔍 Pattern Detection: Automatically identify recurring themes and challenges across conversations for deeper understanding.
+
+- 🧠 AI Reflections: Receive actionable insights into recurring struggles and overarching themes within your dialogue.
+
+- 📜 Archive Support: Comprehensive compatibility with Claude and ChatGPT data exports, with additional integrations in development.
 
 <div align="center">
 
