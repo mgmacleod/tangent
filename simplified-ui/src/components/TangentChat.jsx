@@ -1,15 +1,10 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Plus, ArrowLeft } from 'lucide-react';
 import { BranchNode } from './BranchNode';
 import ChatInterface from './ChatInterface';
-import { ModelSelector } from './ChatMessage';
 import CanvasToolbar from './CanvasToolbar';
-import { TangentLogo } from './TangentLogo';
 import { MessageNavigator } from './MessageNavigator'
 import { ModelStatus } from './ModelStatus'
-import { Button } from './index';
 import { cn } from "./lib/utils";
-
 
 export function GridBackground({ translate, scale, className }) {
   const gridSize = 20;
@@ -50,31 +45,6 @@ export function GridBackground({ translate, scale, className }) {
   );
 }
 
-export const getBezierPath = (source, target) => {
-  const deltaX = target.x - source.x;
-  const deltaY = target.y - source.y;
-  const controlPointOffset = deltaX / 2;
-
-  return `M${source.x},${source.y} C${source.x + controlPointOffset},${source.y} ${target.x - controlPointOffset},${target.y} ${target.x},${target.y}`;
-};
-
-const calculateNodeHeight = (node, isExpanded) => {
-  if (!isExpanded) return 100;
-  return 100 + node.messages.length * 120;
-};
-
-const getConnectionPoints = (sourceNode, targetNode, expandedNodes) => {
-  const sourceHeight = calculateNodeHeight(sourceNode, expandedNodes.has(sourceNode.id));
-  const targetHeight = calculateNodeHeight(targetNode, expandedNodes.has(targetNode.id));
-
-  return {
-    x1: sourceNode.x + 128,
-    y1: sourceNode.y + (expandedNodes.has(sourceNode.id) ? sourceHeight / 2 : 32),
-    x2: targetNode.x + 128,
-    y2: targetNode.y + (expandedNodes.has(targetNode.id) ? targetHeight / 2 : 32),
-  };
-};
-
 const defaultTemplate = {
   id: 'template',
   type: 'template',
@@ -84,25 +54,6 @@ const defaultTemplate = {
   y: 150,
   messages: []
 };
-
-const createBranch = (parentNode, template, nodes, messageIndex, position = null) => {
-  const newId = nodes.length > 0 ? Math.max(...nodes.map(n => n.id)) + 1 : 1;
-  const messages = position?.messages || parentNode.messages.slice(0, messageIndex + 1);
-
-  return {
-    id: newId,
-    messages: messages,
-    x: position?.x ?? parentNode.x + 300,
-    y: position?.y ?? parentNode.y,
-    type: 'branch',
-    title: template.title || `Branch ${newId}`,
-    parentId: parentNode.id,
-    systemPrompt: template.systemPrompt,
-    collapsed: true,
-    parentMessageIndex: messageIndex
-  };
-};
-
 
 const systemPrompt = `You are a helpful AI assistant. When responding:
 1. For brief responses ("briefly", "quick", "short"):
@@ -124,31 +75,50 @@ const systemPrompt = `You are a helpful AI assistant. When responding:
 4. Always adapt your response length based on explicit or implicit length cues in the user's question`;
 
 
-
-const TangentChat = ({ initialConversation, selectedNodePosition, onBack }) => {
+const TangentChat = ({ initialConversation, selectedNodePosition }) => {
   const [nodes, setNodes] = useState(() => {
-    if (initialConversation && Array.isArray(initialConversation)) {
-      // Ensure each node has x and y coordinates
-      return initialConversation.map((node) => ({
-        ...node,
-        x: node.x ?? selectedNodePosition?.x ?? 400,
-        y: node.y ?? selectedNodePosition?.y ?? 100,
-      }));
-    }
-    // Default to main thread if no initialConversation provided
-    return [
-      {
-        id: 1,
-        messages: [],
-        x: 100,
-        y: 100,
-        type: 'main',
-        title: 'Main Thread',
-      },
-    ];
+      if (!initialConversation) {
+          return [{
+              id: 1,
+              messages: [],
+              x: 100,
+              y: 100,
+              type: 'main',
+              title: 'Main Thread',
+              branchId: '0'
+          }];
+      }
+
+      // Calculate positions for nodes based on their relationships
+      return initialConversation.map((node, index) => {
+          let x, y;
+          
+          if (node.type === 'main') {
+              // Position main thread at the selected position or default
+              x = selectedNodePosition?.x || 100;
+              y = selectedNodePosition?.y || 100;
+          } else {
+              // Position branches relative to their parent
+              const parent = initialConversation.find(n => n.id === node.parentId);
+              if (parent) {
+                  // Calculate position based on parent and branch index
+                  const angle = (index * Math.PI) / 4; // Distribute branches in a semi-circle
+                  const radius = 200; // Distance from parent
+                  x = parent.x + radius * Math.cos(angle);
+                  y = parent.y + radius * Math.sin(angle);
+              } else {
+                  x = selectedNodePosition?.x || 300;
+                  y = selectedNodePosition?.y || 100;
+              }
+          }
+
+          return {
+              ...node,
+              x,
+              y
+          };
+      });
   });
-
-
 
   const [selectedNode, setSelectedNode] = useState(initialConversation?.id || 1);
   const [focusedMessageIndex, setFocusedMessageIndex] = useState(0);
@@ -162,20 +132,17 @@ const TangentChat = ({ initialConversation, selectedNodePosition, onBack }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [models, setModels] = useState([]);
   const [selectedModel, setSelectedModel] = useState('');
-  const [activeBranchIndex, setActiveBranchIndex] = useState(0);
   const [activeContext, setActiveContext] = useState({
     messages: [],
     systemPrompt: '',
     parentChain: []
   });
-  const dragOffsetRef = useRef({ x: 0, y: 0 });
   const [dragState, setDragState] = useState({
     isDragging: false,
     nodeId: null,
     startPos: { x: 0, y: 0 },
     nodeStartPos: { x: 0, y: 0 }
   });
-  const nodePositionRef = useRef({ x: 0, y: 0 });
   const [theme, setTheme] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('theme') || 'light';
@@ -186,19 +153,11 @@ const TangentChat = ({ initialConversation, selectedNodePosition, onBack }) => {
   const [continuationCount, setContinuationCount] = useState(0);
   const lastResponseTime = useRef(null);
 
-  // State variables for panning
-  const [panStart, setPanStart] = useState({ x: 0, y: 0 });
-
   const canvasRef = useRef(null);
   const nodesRef = useRef(nodes);
-  const draggedNodeRef = useRef(null);
   const transformRef = useRef({ scale, translate });
 
   nodesRef.current = nodes;
-
-  const [isDragging, setIsDragging] = useState(false);
-  const dragStartPosRef = useRef({ x: 0, y: 0 });
-  const nodeStartPosRef = useRef({ x: 0, y: 0 });
 
   const [pressedKeys, setPressedKeys] = useState(new Set());
   const panSpeedRef = useRef({
@@ -218,13 +177,30 @@ const TangentChat = ({ initialConversation, selectedNodePosition, onBack }) => {
   // Add a sensitivity factor for panning
   const PANNING_SENSITIVITY = 0.4;
   // Add a sensitivity factor for dragging nodes
-  const DRAGGING_SENSITIVITY = 0.2;
 
   const ZOOM_SENSITIVITY = 0.001;
   const STACK_SPACING_X = 300; // Horizontal space between branches
   const STACK_SPACING_Y = 150; // Vertical space between branches
   const STACK_START_X = 100; // Starting X position
   const STACK_START_Y = 100; // Starting Y position
+
+  const getFullMessageHistory = useCallback((nodeId) => {
+    const currentNode = nodes.find(n => n.id === nodeId);
+    if (!currentNode) return [];
+
+    // If it's the main thread or has no parent, return messages as is
+    if (currentNode.type === 'main' || !currentNode.parentId) {
+      return currentNode.messages;
+    }
+
+    // For branch nodes, return the contextMessages if they exist
+    if (currentNode.contextMessages) {
+      return currentNode.contextMessages;
+    }
+
+    // Fallback to just the node's messages if no context exists
+    return currentNode.messages;
+  }, [nodes]);
 
   useEffect(() => {
     transformRef.current = { scale, translate };
@@ -238,7 +214,6 @@ const TangentChat = ({ initialConversation, selectedNodePosition, onBack }) => {
     root.classList.add(theme);
     localStorage.setItem('theme', theme);
   }, [theme]);
-
 
   useEffect(() => {
     if (initialConversation && Array.isArray(initialConversation)) {
@@ -285,6 +260,29 @@ const TangentChat = ({ initialConversation, selectedNodePosition, onBack }) => {
     fetchModels();
   }, []);
 
+  useEffect(() => {
+    if (!canvasRef.current || !nodes.length) return;
+
+    const viewport = {
+      width: canvasRef.current.clientWidth,
+      height: canvasRef.current.clientHeight
+    };
+
+    // Calculate bounds of all nodes
+    const bounds = calculateNodesBounds(nodes);
+    if (!bounds) return;
+
+    // Calculate ideal scale
+    const newScale = calculateIdealScale(bounds, viewport);
+
+    // Calculate translation to center nodes
+    const newTranslate = calculateCenteringTranslation(bounds, viewport, newScale);
+
+    // Update viewport
+    setScale(newScale);
+    setTranslate(newTranslate);
+  }, [nodes.length]); // Only run when number of nodes changes
+
   const handleToolSelect = useCallback((tool) => {
     setActiveTool(tool);
   }, []);
@@ -292,19 +290,6 @@ const TangentChat = ({ initialConversation, selectedNodePosition, onBack }) => {
   const handleThemeChange = useCallback((newTheme) => {
     setTheme(newTheme);
   }, []);
-
-  const getIndicatorPosition = () => {
-    const node = nodes.find((n) => n.id === selectedNode);
-    if (!node || focusedMessageIndex === null) return null;
-
-    const messageOffset = 100 + focusedMessageIndex * 120; // Approximate message height
-    const x = node.x - 50; // Offset to the left of the `BranchNode`
-    const y = node.y + messageOffset;
-
-    return { x, y };
-  };
-
-  const indicatorPosition = getIndicatorPosition();
 
   const focusOnMessage = useCallback((nodeId, messageIndex, zoomInClose = false) => {
     const node = nodes.find(n => n.id === nodeId);
@@ -343,73 +328,6 @@ const TangentChat = ({ initialConversation, selectedNodePosition, onBack }) => {
     setSelectedNode(nodeId);
     setFocusedMessageIndex(messageIndex);
   }, [nodes, scale, expandedNodes]);
-
-
-  // Function to find connected nodes at current message
-  const findConnectedNodes = useCallback((nodeId, messageIndex) => {
-    const currentNode = nodes.find(n => n.id === nodeId);
-    if (!currentNode) return { left: null, right: [] };
-
-    // Find parent (left) connection
-    const left = messageIndex === currentNode.parentMessageIndex ? currentNode.parentId : null;
-
-    // Find child (right) connections
-    const right = nodes
-      .filter(n => n.parentId === currentNode.id && n.parentMessageIndex === messageIndex)
-      .map(n => n.id);
-
-    return { left, right };
-  }, [nodes]);
-
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      // Ignore navigation shortcuts when typing
-      const isTyping = document.activeElement.tagName === 'INPUT' ||
-        document.activeElement.tagName === 'TEXTAREA';
-      if (isTyping) return;
-
-      if (!selectedNode) return;
-
-      const currentNode = nodes.find(n => n.id === selectedNode);
-      if (!currentNode) return;
-
-      const { left, right } = findConnectedNodes(selectedNode, focusedMessageIndex);
-
-      // Determine if Shift is pressed
-      const isShiftPressed = e.shiftKey;
-
-      switch (e.key.toLowerCase()) {
-        case 'w':
-          if (focusedMessageIndex > 0) {
-            setActiveBranchIndex(0);
-            focusOnMessage(selectedNode, focusedMessageIndex - 1, isShiftPressed);
-          }
-          break;
-        case 's':
-          if (focusedMessageIndex < currentNode.messages.length - 1) {
-            setActiveBranchIndex(0);
-            focusOnMessage(selectedNode, focusedMessageIndex + 1, isShiftPressed);
-          }
-          break;
-        case 'a':
-          if (left) {
-            const parentNode = nodes.find(n => n.id === left);
-            focusOnMessage(left, parentNode.parentMessageIndex || 0, isShiftPressed);
-          }
-          break;
-        case 'd':
-          if (right.length > 0) {
-            const nextBranchIndex = (activeBranchIndex + 1) % right.length;
-            setActiveBranchIndex(nextBranchIndex);
-            focusOnMessage(right[nextBranchIndex], 0, isShiftPressed);
-          }
-          break;
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedNode, focusedMessageIndex, nodes, findConnectedNodes, focusOnMessage, activeBranchIndex]);
 
   useEffect(() => {
     const updatePanSpeed = () => {
@@ -479,7 +397,6 @@ const TangentChat = ({ initialConversation, selectedNodePosition, onBack }) => {
     setInputValue(newValue);
   };
 
-
   const handleSendMessage = async () => {
     if (!inputValue.trim() || !selectedNode) return;
 
@@ -489,17 +406,34 @@ const TangentChat = ({ initialConversation, selectedNodePosition, onBack }) => {
     setIsLoading(true);
     const newMessage = { role: 'user', content: inputValue };
 
-    // Add user message immediately
-    const updatedMessages = [...currentNode.messages, newMessage];
-    updateNodeMessages(selectedNode, updatedMessages);
+    // Create initial messages arrays including the new user message
+    const visibleMessages = [...currentNode.messages, newMessage];
+    const contextMessages = currentNode.type === 'branch'
+      ? [...(currentNode.contextMessages || []), newMessage]
+      : null;
+      
+    // Update node with user message immediately
+    setNodes(prevNodes => prevNodes.map(node =>
+      node.id === selectedNode
+        ? {
+          ...node,
+          messages: visibleMessages,
+          contextMessages: currentNode.type === 'branch' ? contextMessages : undefined
+        }
+        : node
+    ));
+
     setInputValue('');
     setStreamingMessage("");
     setContinuationCount(0);
     lastResponseTime.current = Date.now();
 
     try {
-      // Construct conversation history as a formatted prompt
-      const conversationHistory = currentNode.messages
+      const conversationContext = currentNode.type === 'branch'
+        ? contextMessages
+        : visibleMessages;
+
+      const conversationHistory = conversationContext
         .map(msg => `${msg.role === 'user' ? 'Human' : 'Assistant'}: ${msg.content}`)
         .join('\n');
 
@@ -520,23 +454,14 @@ const TangentChat = ({ initialConversation, selectedNodePosition, onBack }) => {
         }
       };
 
-      console.log("Sending completion request:", {
-        url: 'http://localhost:11434/api/generate',
-        body: requestBody
-      });
-
       const response = await fetch('http://localhost:11434/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestBody)
       });
 
-      console.log("Initial response status:", response.status);
-      console.log("Initial response headers:", Object.fromEntries(response.headers.entries()));
-
       if (!response.ok) {
         const errorText = await response.text();
-        console.error("Error response body:", errorText);
         throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
       }
 
@@ -544,17 +469,26 @@ const TangentChat = ({ initialConversation, selectedNodePosition, onBack }) => {
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
 
+      const updateStreamingContent = (content) => {
+        setStreamingMessage(content);
+
+        // Only update the node's streamingContent field
+        setNodes(prevNodes => prevNodes.map(node => {
+          if (node.id !== selectedNode) return node;
+
+          return {
+            ...node,
+            streamingContent: content
+          };
+        }));
+      };
+
       try {
         while (true) {
           const { value, done } = await reader.read();
-          if (done) {
-            console.log("Stream complete. Final accumulated response:", accumulatedResponse);
-            break;
-          }
+          if (done) break;
 
           const chunk = decoder.decode(value);
-          console.log("Received chunk:", chunk);
-
           const lines = chunk.split('\n');
 
           for (const line of lines) {
@@ -562,7 +496,6 @@ const TangentChat = ({ initialConversation, selectedNodePosition, onBack }) => {
 
             try {
               const data = JSON.parse(line);
-              console.log("Parsed JSON data:", data);
 
               if (data.error) {
                 console.error('Server returned error:', data.error);
@@ -571,42 +504,58 @@ const TangentChat = ({ initialConversation, selectedNodePosition, onBack }) => {
 
               if (data.response !== undefined) {
                 accumulatedResponse += data.response;
-                setStreamingMessage(accumulatedResponse);
+                updateStreamingContent(accumulatedResponse);
 
-                // Check for continuation (pause > 0.5s)
                 const now = Date.now();
                 if (lastResponseTime.current && (now - lastResponseTime.current) > 500) {
                   setContinuationCount(prev => prev + 1);
                 }
                 lastResponseTime.current = now;
               }
-
-              if (data.done && accumulatedResponse.trim()) {
-                console.log("Received done signal. Creating assistant message.");
-                const assistantMessage = {
-                  role: 'assistant',
-                  content: accumulatedResponse.trim(),
-                  continuationCount
-                };
-                const finalMessages = [...updatedMessages, assistantMessage];
-                updateNodeMessages(selectedNode, finalMessages);
-                setStreamingMessage("");
-              }
             } catch (e) {
               console.error('Error parsing JSON line:', e);
-              console.error('Problematic line:', line);
             }
           }
         }
-      } catch (readerError) {
-        console.error('Error reading stream:', readerError);
-        throw readerError;
       } finally {
+        // Add the final complete message only once
+        setNodes(prevNodes => prevNodes.map(node => {
+          if (node.id !== selectedNode) return node;
+
+          const finalMessage = {
+            role: 'assistant',
+            content: accumulatedResponse,
+            continuationCount
+          };
+
+          // Get messages without any streaming message
+          const baseMessages = node.messages.filter(msg => !msg.isStreaming);
+          const baseContextMessages = node.type === 'branch'
+            ? node.contextMessages?.filter(msg => !msg.isStreaming)
+            : null;
+
+          return {
+            ...node,
+            messages: [...baseMessages, finalMessage],
+            contextMessages: node.type === 'branch'
+              ? [...baseContextMessages, finalMessage]
+              : undefined,
+            streamingContent: null // Clear streaming content
+          };
+        }));
+
+        setStreamingMessage(""); // Clear streaming message
         reader.releaseLock();
       }
     } catch (error) {
       console.error('Error in handleSendMessage:', error);
-      setStreamingMessage(`Error: ${error.message}`);
+      setStreamingMessage("");
+
+      // Update nodes to remove streaming state
+      setNodes(prevNodes => prevNodes.map(node => ({
+        ...node,
+        streamingContent: null
+      })));
     } finally {
       setIsLoading(false);
     }
@@ -655,22 +604,13 @@ const TangentChat = ({ initialConversation, selectedNodePosition, onBack }) => {
 
     const newNode = createBranch(parentNode, template, nodes, messageIndex, position);
 
-    // Update the active context when creating a new branch
+    // Update the active context with the full context from parent
     const branchContext = buildConversationContext(newNode);
     setActiveContext(branchContext);
 
     setNodes(prevNodes => [...prevNodes, newNode]);
     setSelectedNode(newNode.id);
   };
-
-  const updateNodeMessages = (nodeId, messages) => {
-    setNodes(nodes.map(node =>
-      node.id === nodeId
-        ? { ...node, messages }
-        : node
-    ));
-  };
-
 
   const screenToCanvas = useCallback((screenX, screenY) => {
     const { scale, translate } = transformRef.current;
@@ -726,6 +666,18 @@ const TangentChat = ({ initialConversation, selectedNodePosition, onBack }) => {
     });
   }, []);
 
+  const getSiblingBranches = useCallback((nodeId) => {
+    const currentNode = nodes.find(n => n.id === nodeId);
+    if (!currentNode || !currentNode.parentId) return [];
+
+    // Get all branches that share the same parent and parent message index
+    return nodes.filter(n =>
+      n.id !== nodeId &&
+      n.parentId === currentNode.parentId &&
+      n.parentMessageIndex === currentNode.parentMessageIndex
+    ).sort((a, b) => a.y - b.y); // Sort by vertical position
+  }, [nodes]);
+
   // Handle canvas mouse down for both panning and node dragging
   const handleCanvasMouseDown = useCallback((e) => {
     if (e.button !== 0) return;
@@ -740,7 +692,6 @@ const TangentChat = ({ initialConversation, selectedNodePosition, onBack }) => {
       setLastMousePos({ x: e.clientX, y: e.clientY });
     }
   }, [activeTool]);
-
 
   const handleDeleteNode = (nodeId) => {
     // Also delete all child nodes
@@ -790,26 +741,24 @@ const TangentChat = ({ initialConversation, selectedNodePosition, onBack }) => {
     setTranslate(newTranslate);
   }, [screenToCanvas]);
 
-
   // Function to center the main node
   const centerCanvas = useCallback(() => {
     if (!canvasRef.current) return;
-    const canvasRect = canvasRef.current.getBoundingClientRect();
-    const mainNode = nodes.find(n => n.id === 1);
-    if (!mainNode) return;
 
-    // Calculate the center position
-    const centerX = canvasRect.width / 2;
-    const centerY = canvasRect.height / 2;
+    const viewport = {
+      width: canvasRef.current.clientWidth,
+      height: canvasRef.current.clientHeight
+    };
 
-    // Adjust translation to center the main node
-    const newTranslateX = centerX - (mainNode.x + 128) * scale;
-    const newTranslateY = centerY - (mainNode.y + calculateNodeHeight(mainNode, expandedNodes.has(mainNode.id)) / 2) * scale;
+    const bounds = calculateNodesBounds(nodes);
+    if (!bounds) return;
 
-    setTranslate({ x: newTranslateX, y: newTranslateY });
-    setScale(1); // Reset scale to default
-  }, [nodes, scale, expandedNodes]);
+    const newScale = calculateIdealScale(bounds, viewport);
+    const newTranslate = calculateCenteringTranslation(bounds, viewport, newScale);
 
+    setScale(newScale);
+    setTranslate(newTranslate);
+  }, [nodes]);
 
   const organizeNodesIntoStack = useCallback(() => {
     // Padding values to add space between threads
@@ -881,60 +830,326 @@ const TangentChat = ({ initialConversation, selectedNodePosition, onBack }) => {
     }
   }, [nodes, scale]);
 
-  const isValidPosition = (position) => {
-    return position &&
-      typeof position.x === 'number' &&
-      typeof position.y === 'number' &&
-      !isNaN(position.x) &&
-      !isNaN(position.y);
-  };
+  const getConnectionPoints = (sourceNode, targetNode, expandedNodes) => {
+    const isSourceExpanded = expandedNodes.has(sourceNode.id);
+    const messageIndex = targetNode.parentMessageIndex || 0;
+    const messageOffset = isSourceExpanded ? calculateMessageOffset(sourceNode.messages, messageIndex) : 50;
 
-  const getNodePosition = (node, isExpanded) => {
-    const baseHeight = 50; // Base height for collapsed node
-    const messageHeight = 120; // Height per message when expanded
-    const nodeHeight = isExpanded ? baseHeight + (node.messages.length * messageHeight) : baseHeight;
+    // Determine if target is to the left or right of source
+    const isTargetOnLeft = targetNode.x < sourceNode.x;
+
+    // Source coordinates
+    const sourceX = isTargetOnLeft ?
+      sourceNode.x : // Connect from left edge if target is on left
+      sourceNode.x + 256; // Connect from right edge if target is on right
+    const sourceY = sourceNode.y + messageOffset;
+
+    // Target coordinates
+    const targetX = isTargetOnLeft ?
+      targetNode.x + 256 : // Connect to right edge if target is on left
+      targetNode.x; // Connect to left edge if target is on right
+    const targetY = targetNode.y + 50; // Connect to top of target node
 
     return {
-      x: node.x + 128, // Half of node width (256/2)
-      y: node.y + (nodeHeight / 2)
+      x1: sourceX,
+      y1: sourceY,
+      x2: targetX,
+      y2: targetY,
+      isTargetOnLeft
     };
   };
 
-  const createConnectionPath = (sourceNode, targetNode, expandedNodes) => {
-    const source = getNodePosition(sourceNode, expandedNodes.has(sourceNode.id));
-    const target = {
-      x: targetNode.x,
-      y: targetNode.y + (expandedNodes.has(targetNode.id) ?
-        targetNode.messages.length * 120 + 100 : 50)
-    };
+  // Calculate the bounding box of all nodes
+  const calculateNodesBounds = (nodes) => {
+    if (!nodes.length) return null;
 
-    if (!isValidPosition(source) || !isValidPosition(target)) {
-      return null;
-    }
+    return nodes.reduce((bounds, node) => {
+      const nodeWidth = 256; // Fixed node width
+      const nodeHeight = 100; // Base node height
 
-    const controlPointOffset = Math.abs(target.x - source.x) * 0.5;
-    return `M ${source.x},${source.y} ` +
-      `C ${source.x + controlPointOffset},${source.y} ` +
-      `${target.x - controlPointOffset},${target.y} ` +
-      `${target.x},${target.y}`;
+      // Update bounds
+      return {
+        minX: Math.min(bounds.minX, node.x),
+        maxX: Math.max(bounds.maxX, node.x + nodeWidth),
+        minY: Math.min(bounds.minY, node.y),
+        maxY: Math.max(bounds.maxY, node.y + nodeHeight)
+      };
+    }, {
+      minX: Infinity,
+      maxX: -Infinity,
+      minY: Infinity,
+      maxY: -Infinity
+    });
   };
 
-  // SVG Connection component
+  // Calculate the ideal scale to fit content
+  const calculateIdealScale = (bounds, viewport, padding = 100) => {
+    if (!bounds) return 1;
+
+    const contentWidth = bounds.maxX - bounds.minX + padding * 2;
+    const contentHeight = bounds.maxY - bounds.minY + padding * 2;
+
+    // Calculate scale based on both dimensions
+    const scaleX = (viewport.width - 384) / contentWidth; // Subtract sidebar width
+    const scaleY = viewport.height / contentHeight;
+
+    // Use the smaller scale to ensure content fits
+    return Math.min(Math.min(scaleX, scaleY), 1);
+  };
+
+  // Calculate the translation to center content
+  const calculateCenteringTranslation = (bounds, viewport, scale, padding = 100) => {
+    if (!bounds) return { x: 0, y: 0 };
+
+    const contentWidth = (bounds.maxX - bounds.minX + padding * 2) * scale;
+    const contentHeight = (bounds.maxY - bounds.minY + padding * 2) * scale;
+
+    // Center horizontally, accounting for sidebar
+    const x = ((viewport.width - 384) - contentWidth) / 2 - bounds.minX * scale + padding * scale;
+    // Center vertically
+    const y = (viewport.height - contentHeight) / 2 - bounds.minY * scale + padding * scale;
+
+    return { x, y };
+  };
+
+  const getBezierPath = (points) => {
+    const { x1, y1, x2, y2, isTargetOnLeft } = points;
+
+    // Calculate the horizontal distance between the points
+    const dx = x2 - x1;
+
+    // Adjust control points based on relative positions
+    const distance = Math.abs(dx);
+    const offset = Math.min(distance * 0.5, 200);
+
+    // Create control points that produce a more natural curve
+    const cp1x = x1 + (isTargetOnLeft ? -offset : offset);
+    const cp1y = y1;
+    const cp2x = x2 + (isTargetOnLeft ? offset : -offset);
+    const cp2y = y2;
+
+    return `M ${x1},${y1} C ${cp1x},${cp1y} ${cp2x},${cp2y} ${x2},${y2}`;
+  };
+
   const Connection = ({ sourceNode, targetNode, expandedNodes }) => {
-    const path = createConnectionPath(sourceNode, targetNode, expandedNodes);
-    if (!path) return null;
+    if (!sourceNode || !targetNode) return null;
+
+    // Get connection points with relative position info
+    const points = getConnectionPoints(sourceNode, targetNode, expandedNodes);
+
+    // Generate the path
+    const path = getBezierPath(points);
+
+    // Set opacity based on expansion state
+    const opacity = expandedNodes.has(sourceNode.id) ? 1 : 0.5;
 
     return (
       <path
         d={path}
         className="stroke-primary dark:stroke-primary"
+        style={{
+          opacity,
+          transition: 'all 0.2s ease-in-out'
+        }}
         strokeWidth="2"
         fill="none"
       />
     );
   };
 
+  // Helper function to calculate message offset (unchanged but included for completeness)
+  const calculateMessageOffset = (messages, index) => {
+    if (!messages || index < 0) return 50;
+    return messages.slice(0, index + 1).reduce((acc, msg) => {
+      const contentHeight = msg.content.length > 150 ? 160 : 120;
+      return acc + contentHeight;
+    }, 100);
+  };
 
+  const createBranch = (parentNode, template, nodes, messageIndex, position = null) => {
+    const newId = nodes.length > 0 ? Math.max(...nodes.map(n => n.id)) + 1 : 1;
+
+    // Get the full context for the branch
+    const contextMessages = parentNode.messages.slice(0, messageIndex + 1);
+
+    return {
+      id: newId,
+      // Visual messages only show the branched message
+      messages: [parentNode.messages[messageIndex]],
+      x: position?.x ?? parentNode.x + 300,
+      y: position?.y ?? (parentNode.y + calculateMessageOffset(parentNode.messages, messageIndex) - 60),
+      type: 'branch',
+      title: template.title || `Branch ${newId}`,
+      parentId: parentNode.id,
+      systemPrompt: template.systemPrompt,
+      collapsed: true,
+      parentMessageIndex: messageIndex,
+      // Keep full context in a separate property
+      contextMessages: contextMessages
+    };
+  };
+
+  const getConnectedBranches = (nodeId, messageIndex) => {
+    const currentNode = nodes.find(n => n.id === nodeId);
+    if (!currentNode) return { left: [], right: [], parent: null };
+
+    // Get parent info
+    const parent = currentNode.parentId ? nodes.find(n => n.id === currentNode.parentId) : null;
+    const parentPosition = parent ? getNodePosition(currentNode, parent) : null;
+
+    // Get all child branches at current message
+    const children = nodes.filter(n =>
+      n.parentId === currentNode.id &&
+      n.parentMessageIndex === messageIndex
+    );
+
+    // Sort children by x position
+    const leftBranches = children.filter(n => n.x < currentNode.x)
+      .sort((a, b) => b.x - a.x); // Sort from closest to furthest
+    const rightBranches = children.filter(n => n.x >= currentNode.x)
+      .sort((a, b) => a.x - b.x); // Sort from closest to furthest
+
+    return {
+      left: leftBranches,
+      right: rightBranches,
+      parent: parent ? { node: parent, position: parentPosition } : null
+    };
+  };
+
+  const handleNavigation = useCallback((direction) => {
+    const currentNode = nodes.find(n => n.id === selectedNode);
+    if (!currentNode) return;
+
+    const branches = getConnectedBranches(selectedNode, focusedMessageIndex);
+    const siblingBranches = getSiblingBranches(selectedNode);
+
+    switch (direction) {
+      case 'up': {
+        if (focusedMessageIndex > 0) {
+          // Regular message navigation
+          focusOnMessage(selectedNode, focusedMessageIndex - 1);
+        } else {
+          // Try to find a sibling branch above
+          const siblingAbove = siblingBranches.reverse().find(n => n.y < currentNode.y);
+          if (siblingAbove) {
+            // Jump to the last message of the sibling branch above
+            const siblingMessages = siblingAbove.messages.length;
+            focusOnMessage(siblingAbove.id, Math.max(0, siblingMessages - 1));
+          }
+        }
+        break;
+      }
+
+      case 'down': {
+        if (focusedMessageIndex < currentNode.messages.length - 1) {
+          // Regular message navigation
+          focusOnMessage(selectedNode, focusedMessageIndex + 1);
+        } else {
+          // Try to find a sibling branch below
+          const siblingBelow = siblingBranches.find(n => n.y > currentNode.y);
+          if (siblingBelow) {
+            // Jump to the first message of the sibling branch below
+            focusOnMessage(siblingBelow.id, 0);
+          }
+        }
+        break;
+      }
+
+      case 'left': {
+        if (branches.parent?.position === 'left') {
+          focusOnMessage(branches.parent.node.id, currentNode.parentMessageIndex);
+        } else if (branches.left.length > 0) {
+          const currentIndex = branches.left.findIndex(n => n.id === selectedNode);
+          const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % branches.left.length;
+          focusOnMessage(branches.left[nextIndex].id, 0);
+        }
+        break;
+      }
+
+      case 'right': {
+        if (branches.parent?.position === 'right') {
+          focusOnMessage(branches.parent.node.id, currentNode.parentMessageIndex);
+        } else if (branches.right.length > 0) {
+          const currentIndex = branches.right.findIndex(n => n.id === selectedNode);
+          const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % branches.right.length;
+          focusOnMessage(branches.right[nextIndex].id, 0);
+        }
+        break;
+      }
+    }
+  }, [nodes, selectedNode, focusedMessageIndex, focusOnMessage, getConnectedBranches, getSiblingBranches]);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (document.activeElement.tagName === 'INPUT' ||
+        document.activeElement.tagName === 'TEXTAREA') return;
+
+      if (!selectedNode) return;
+
+      const currentNode = nodes.find(n => n.id === selectedNode);
+      if (!currentNode) return;
+
+      const isShiftPressed = e.shiftKey;
+      const branches = getConnectedBranches(selectedNode, focusedMessageIndex);
+      const siblingBranches = getSiblingBranches(selectedNode);
+
+      switch (e.key.toLowerCase()) {
+        case 'w': {
+          if (focusedMessageIndex > 0) {
+            focusOnMessage(selectedNode, focusedMessageIndex - 1, isShiftPressed);
+          } else {
+            const siblingAbove = siblingBranches.reverse().find(n => n.y < currentNode.y);
+            if (siblingAbove) {
+              const siblingMessages = siblingAbove.messages.length;
+              focusOnMessage(siblingAbove.id, Math.max(0, siblingMessages - 1), isShiftPressed);
+            }
+          }
+          break;
+        }
+
+        case 's': {
+          if (focusedMessageIndex < currentNode.messages.length - 1) {
+            focusOnMessage(selectedNode, focusedMessageIndex + 1, isShiftPressed);
+          } else {
+            const siblingBelow = siblingBranches.find(n => n.y > currentNode.y);
+            if (siblingBelow) {
+              focusOnMessage(siblingBelow.id, 0, isShiftPressed);
+            }
+          }
+          break;
+        }
+
+        case 'a': {
+          if (branches.parent?.position === 'left') {
+            focusOnMessage(branches.parent.node.id, currentNode.parentMessageIndex, isShiftPressed);
+          } else if (branches.left.length > 0) {
+            const currentIndex = branches.left.findIndex(n => n.id === selectedNode);
+            const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % branches.left.length;
+            focusOnMessage(branches.left[nextIndex].id, 0, isShiftPressed);
+          }
+          break;
+        }
+
+        case 'd': {
+          if (branches.parent?.position === 'right') {
+            focusOnMessage(branches.parent.node.id, currentNode.parentMessageIndex, isShiftPressed);
+          } else if (branches.right.length > 0) {
+            const currentIndex = branches.right.findIndex(n => n.id === selectedNode);
+            const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % branches.right.length;
+            focusOnMessage(branches.right[nextIndex].id, 0, isShiftPressed);
+          }
+          break;
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedNode, focusedMessageIndex, nodes, focusOnMessage, getConnectedBranches, getSiblingBranches]);
+
+  const getNodePosition = (sourceNode, targetNode) => {
+    return targetNode.x < sourceNode.x ? 'left' : 'right';
+  };
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -1103,14 +1318,14 @@ const TangentChat = ({ initialConversation, selectedNodePosition, onBack }) => {
             }}
           >
             {nodes.map((node) => {
+              if (!node.parentId) return null;
+
               const parent = nodes.find(n => n.id === node.parentId);
               if (!parent) return null;
 
-              const connectionKey = `connection-${parent.id}-${node.id}-${node.branchId || '0'}`;
-
               return (
                 <Connection
-                  key={connectionKey}
+                  key={`connection-${parent.id}-${node.id}`}
                   sourceNode={parent}
                   targetNode={node}
                   expandedNodes={expandedNodes}
@@ -1152,15 +1367,16 @@ const TangentChat = ({ initialConversation, selectedNodePosition, onBack }) => {
       </div>
 
       {/* Chat Sidebar */}
-      <div className="absolute right-0 top-0 bottom-0 w-96 bg-background border-l border-border">
+      <div className="absolute right-0 top-40 bottom-0 w-96 bg-background border-l border-border">
         {selectedNode && (
           <>
-            <div className="flex gap-2 p-2 border-b border-border">
+            <div className="flex gap-2 p-2 border border-border">
               <MessageNavigator
                 currentNode={nodes.find(n => n.id === selectedNode)}
                 currentIndex={focusedMessageIndex}
-                connectedNodes={findConnectedNodes(selectedNode, focusedMessageIndex)}
                 totalMessages={nodes.find(n => n.id === selectedNode)?.messages.length || 0}
+                onNavigate={handleNavigation}
+                branches={getConnectedBranches(selectedNode, focusedMessageIndex)}
               />
               <ModelStatus
                 selectedModel={selectedModel}
@@ -1168,9 +1384,9 @@ const TangentChat = ({ initialConversation, selectedNodePosition, onBack }) => {
                 temperature={0.7}
               />
             </div>
-            <div className="h-[calc(100%-4rem)] overflow-hidden">
+            <div className="overflow-hidden">
               <ChatInterface
-                messages={(nodes.find(n => n.id === selectedNode))?.messages || []}
+                messages={getFullMessageHistory(selectedNode)}
                 input={inputValue}
                 isLoading={isLoading}
                 onInputChange={handleInputChange}

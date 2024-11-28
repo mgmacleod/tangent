@@ -161,10 +161,10 @@ const ChatInterface = ({
   }, [messages.length]);
 
   return (
-    <div className="h-full flex flex-col max-h-full">
-      {/* Header - remains the same */}
+    <div className="h-[75vh] flex flex-col">
+      {/* Header */}
       <div className={cn(
-        "px-6 py-4 border-b border-border flex-shrink-0",
+        "flex-shrink-0 px-6 py-4 border-b border-border",
         "bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60"
       )}>
         <div className="flex items-center justify-between">
@@ -177,15 +177,12 @@ const ChatInterface = ({
         </div>
       </div>
 
-      {/* Messages Area - adjusted bottom padding */}
-      <div className="flex-1 min-h-0 relative">
+      {/* Messages Area */}
+      <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4 bg-background/50 backdrop-blur-sm">
         <div
           ref={messagesContainerRef}
           onScroll={handleScroll}
-          className={cn(
-            "absolute inset-0 overflow-y-auto px-6 py-6 pb-4 space-y-4 scroll-smooth", // Added pb-24 for extra bottom padding
-            "bg-background/50 backdrop-blur-sm"
-          )}
+          className="space-y-4"
         >
           {messages.map((message, i) => (
             <ChatMessage
@@ -214,6 +211,7 @@ const ChatInterface = ({
           <div ref={messagesEndRef} />
         </div>
 
+        {/* Scroll Buttons */}
         <ScrollButtons
           containerRef={messagesContainerRef}
           showScrollTop={showScrollTop}
@@ -226,9 +224,9 @@ const ChatInterface = ({
         />
       </div>
 
-      {/* Input Area - added top margin and adjusted padding */}
+      {/* Input Area */}
       <div className={cn(
-        "mt-auto p-6 pt-8 border-t pb-4 border-border flex-shrink-0", // Added pt-8 for more top padding
+        "flex-shrink-0 mt-auto p-4 pt-6 border-t pb-3 border-border",
         "bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60"
       )}>
         <div className="flex gap-3">
@@ -287,6 +285,8 @@ const ChatInterface = ({
       </div>
     </div>
   );
+
+
 };
 
 export default ChatInterface;

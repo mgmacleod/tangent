@@ -13,23 +13,6 @@ import VisualizationPanel from './VisualizationPanel';
 import TopicsPanel from './TopicsPanel';
 import HoverTooltip from './HoverTooltip';
 
-const endpointColors = {
-    "http://127.0.0.1:5000/api/process/status": "#FF5733", // Orange
-    "http://127.0.0.1:5000/api/process": "#33FF57", // Green
-    "http://127.0.0.1:8080/inference": "#3357FF", // Blue
-    "http://127.0.0.1:5000/api/get-reflection": "#F39C12", // Amber
-    "http://127.0.0.1:11434/api/tags": "#16A085", // Teal
-    "http://127.0.0.1:11434/api/ps": "#2C3E50", // Navy
-    "http://127.0.0.1:11434/api/show": "#C0392B", // Crimson
-    "http://127.0.0.1:11434/api/delete": "#D35400", // Tangerine
-    "http://127.0.0.1:11434/api/pull": "#1ABC9C", // Emerald
-    "http://127.0.0.1:5000/api/visualization": "#9B59B6", // Violet
-    "http://127.0.0.1:5000/api/states": "#34495E", // Dark Grayish Blue
-    "http://127.0.0.1:5000/api/state/": "#E74C3C", // Red
-    "http://localhost:11434/api/chat": "#8E44AD", // Purple
-};
-
-
 
 // Utility function for getting colors (moved outside component)
 function getColor(index) {
@@ -58,6 +41,15 @@ function getColor(index) {
     return colors[index % colors.length];
 }
 
+const getThemeColors = (theme) => ({
+    text: theme === "dark" ? "#fff" : "#000",
+    mutedText: theme === "dark" ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.6)",
+    link: theme === "dark" ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.3)",
+    starOutline: theme === "dark" ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.4)",
+    branchPattern: theme === "dark" ? "#ffffff33" : "#00000033"
+});
+
+
 
 const MainDashboard = ({ onConversationSelect }) => {  // Add this prop
     const [isTreeView, setIsTreeView] = useState(false);
@@ -85,7 +77,7 @@ const MainDashboard = ({ onConversationSelect }) => {  // Add this prop
     const [isLoadingState, setIsLoadingState] = useState(false);
     const [chatType, setChatType] = useState('claude');
     const [delayedCluster, setDelayedCluster] = useState(null);
-    const [visualizationType, setVisualizationType] = useState('star'); // 'star' or 'islands'
+    const [visualizationType, setVisualizationType] = useState('islands'); // 'star' or 'islands'
 
     const [theme, setTheme] = useState(() => {
         if (typeof window !== "undefined") {
@@ -113,7 +105,7 @@ const MainDashboard = ({ onConversationSelect }) => {  // Add this prop
         const encodedTitle = encodeURIComponent(title);
         try {
             const response = await axios.get(
-                `http://127.0.0.1:5000/api/messages/${encodedTitle}?type=${chatType}`,
+                `http://127.0.0.1:5001/api/messages/${encodedTitle}?type=${chatType}`,
                 {
                     validateStatus: function (status) {
                         return status < 500; // Handle 404s without throwing
@@ -140,7 +132,7 @@ const MainDashboard = ({ onConversationSelect }) => {  // Add this prop
             }
 
             try {
-                const response = await fetch(`http://127.0.0.1:5000/api/visualization?type=${chatType}`);
+                const response = await fetch(`http://127.0.0.1:5001/api/visualization?type=${chatType}`);
 
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
@@ -175,7 +167,7 @@ const MainDashboard = ({ onConversationSelect }) => {  // Add this prop
         fetchData();
     }, [chatType]);
 
-    const url_visualization = "http://127.0.0.1:5000/api/visualization";
+    const url_visualization = "http://127.0.0.1:5001/api/visualization";
 
     useEffect(() => {
         const handleEsc = (e) => {
@@ -192,7 +184,7 @@ const MainDashboard = ({ onConversationSelect }) => {  // Add this prop
 
     const handleRefresh = async () => {
         setIsLoading(true);
-        const url = `http://127.0.0.1:5000/api/visualization?type=${chatType}`;
+        const url = `http://127.0.0.1:5001/api/visualization?type=${chatType}`;
 
         try {
             const response = await fetch(url);
@@ -294,22 +286,38 @@ const MainDashboard = ({ onConversationSelect }) => {  // Add this prop
 
     useEffect(() => {
         const handleClusterSelection = async () => {
-            if (selectedCluster !== null && nodesDataRef.current) {
-                const topicNode = nodesDataRef.current.find(
-                    (node) => node.size && node.id === selectedCluster
-                );
+            if (selectedCluster !== null) {
+                let nodeData;
 
-                if (topicNode) {
-                    // First set delayed cluster to null to ensure modal is hidden
+                if (visualizationType === 'star') {
+                    // For star visualization, find the node in nodesDataRef
+                    nodeData = nodesDataRef.current?.find(
+                        node => node.size && node.id === selectedCluster
+                    );
+                } else {
+                    // For islands visualization, construct node data from the cluster
+                    const clusterData = data.topics[selectedCluster];
+                    if (clusterData) {
+                        // Find all conversations in this cluster
+                        const conversations = data.chartData[0].data.filter(
+                            d => d.cluster === selectedCluster
+                        );
+
+                        nodeData = {
+                            id: selectedCluster,
+                            topic: clusterData.topic,
+                            width: Math.max(300, conversations.length * 30), // Estimate width based on content
+                            height: Math.max(100, conversations.length * 30 + 60), // Estimate height based on content
+                        };
+                    }
+                }
+
+                if (nodeData) {
                     setDelayedCluster(null);
-
-                    // Center on the node and wait for animation to complete
-                    await centerOnNode(topicNode);
-
-                    // Add a small additional delay before showing modal
+                    await centerOnNode(nodeData);
                     setTimeout(() => {
                         setDelayedCluster(selectedCluster);
-                    }, 200); // Additional 200ms delay after centering completes
+                    }, 200);
                 }
             } else {
                 setDelayedCluster(null);
@@ -317,25 +325,38 @@ const MainDashboard = ({ onConversationSelect }) => {  // Add this prop
         };
 
         handleClusterSelection();
-    }, [selectedCluster]);
-
-    ;
+    }, [selectedCluster, visualizationType, data]);
 
     const handleZoomIn = () => {
         if (!zoomRef.current || !svgRef.current) return;
-        d3.select(svgRef.current)
-            .transition()
-            .duration(300)
-            .call(zoomRef.current.scaleBy, 1.7);
+        const currentScale = d3.zoomTransform(svgRef.current).k;
+        const maxScale = visualizationType === 'star' ? 8 : 2;
+
+        // Don't zoom in beyond max scale
+        if (currentScale * 1.7 <= maxScale) {
+            d3.select(svgRef.current)
+                .transition()
+                .duration(300)
+                .call(zoomRef.current.scaleBy, 1.7);
+        }
     };
+
+    // Update handleZoomOut function to allow for more dramatic zoom out
 
     const handleZoomOut = () => {
         if (!zoomRef.current || !svgRef.current) return;
-        d3.select(svgRef.current)
-            .transition()
-            .duration(300)
-            .call(zoomRef.current.scaleBy, 0.45);
+        const currentScale = d3.zoomTransform(svgRef.current).k;
+        const minScale = visualizationType === 'star' ? 0.2 : 0.05;
+
+        // Don't zoom out beyond min scale
+        if (currentScale * 0.25 >= minScale) {
+            d3.select(svgRef.current)
+                .transition()
+                .duration(300)
+                .call(zoomRef.current.scaleBy, 0.25);
+        }
     };
+
     useEffect(() => {
         if (selectedCluster !== null && nodesDataRef.current) {
             const topicNode = nodesDataRef.current.find(
@@ -358,10 +379,49 @@ const MainDashboard = ({ onConversationSelect }) => {  // Add this prop
 
             const width = svgRef.current.clientWidth;
             const height = svgRef.current.clientHeight;
-            const scale = 2.5;
-            const x = width / 2 - nodeData.x * scale;
-            const y = height / 2 - nodeData.y * scale;
 
+            // Handle different node data structures based on visualization type
+            let x, y, scale;
+
+            if (visualizationType === 'star') {
+                // Star visualization - nodes have x, y coordinates directly
+                scale = 2;
+                x = width / 2 - nodeData.x * scale;
+                y = height / 2 - nodeData.y * scale;
+            } else {
+                // Islands visualization - nodes are transformed groups
+                // Find the cluster group by ID
+                const clusterGroup = d3.select(svgRef.current)
+                    .select(`.cluster:nth-child(${parseInt(nodeData.id) + 1})`);
+
+                if (!clusterGroup.empty()) {
+                    // Get the transform attribute values
+                    const transform = clusterGroup.attr("transform");
+                    const match = transform.match(/translate\(([-\d.]+),\s*([-\d.]+)\)/);
+
+                    if (match) {
+                        const clusterX = parseFloat(match[1]);
+                        const clusterY = parseFloat(match[2]);
+
+                        // Calculate center position including cluster dimensions
+                        scale = 1;
+                        x = width / 2 - (clusterX + nodeData.width / 2) * scale;
+                        y = height / 2 - (clusterY + nodeData.height / 2) * scale;
+                    } else {
+                        // Fallback if transform not found
+                        scale = 1.5;
+                        x = width / 2;
+                        y = height / 2;
+                    }
+                } else {
+                    // Fallback if cluster not found
+                    scale = 1.5;
+                    x = width / 2;
+                    y = height / 2;
+                }
+            }
+
+            // Apply the transform with animation
             d3.select(svgRef.current)
                 .transition()
                 .duration(750)
@@ -369,7 +429,7 @@ const MainDashboard = ({ onConversationSelect }) => {  // Add this prop
                     zoomRef.current.transform,
                     d3.zoomIdentity.translate(x, y).scale(scale)
                 )
-                .on("end", resolve); // Resolve promise when transition ends
+                .on("end", resolve);
         });
     };
 
@@ -383,7 +443,7 @@ const MainDashboard = ({ onConversationSelect }) => {  // Add this prop
         localStorage.setItem("theme", theme);
     }, [theme]);
 
-    const url_states = "http://127.0.0.1:5000/api/states";
+    const url_states = "http://127.0.0.1:5001/api/states";
 
     useEffect(() => {
         const fetchStates = async () => {
@@ -400,151 +460,234 @@ const MainDashboard = ({ onConversationSelect }) => {  // Add this prop
     }, [chatType]);
 
 
+
     function createIslandsVisualization() {
-        // Clear any existing visualization
+        // Clear existing visualization
         const svg = d3.select(svgRef.current);
         svg.selectAll("*").remove();
 
         const width = svgRef.current.clientWidth;
         const height = svgRef.current.clientHeight;
+        const padding = 100;
 
-        const clusters = Object.entries(data.topics).map(([id, topic]) => ({
-            id: parseInt(id),
-            name: topic.topic,
-            size: topic.size,
-            coherence: topic.coherence,
-        }));
+        // Helper function to measure text width
+        const measureTextWidth = (text, fontSize) => {
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            context.font = `${fontSize}px sans-serif`;
+            return context.measureText(text).width;
+        };
 
-        const numClusters = clusters.length;
-        const numColumns = Math.ceil(Math.sqrt(numClusters));
-        const numRows = Math.ceil(numClusters / numColumns);
+        // Process and group clusters by category with optimized sizing
+        const clusters = Object.entries(data.topics).map(([id, topic]) => {
+            const conversations = data.chartData[0].data.filter(d => d.cluster === parseInt(id));
 
-        const containerWidth = width / numColumns;
-        const containerHeight = height / numRows;
+            // Calculate maximum text width among all conversation titles
+            let maxConversationWidth = 0;
+            conversations.forEach(conv => {
+                // Account for branch indicator space if needed
+                const baseTitle = conv.title.replace(/ \(Branch \d+\)$/, '');
+                const hasBranches = conversations.filter(c =>
+                    c.title.replace(/ \(Branch \d+\)$/, '') === baseTitle
+                ).length > 1;
+                const textWidth = measureTextWidth(conv.title, 14);
+                const totalWidth = textWidth + (hasBranches ? 55 : 35); // Include padding and branch indicator
+                maxConversationWidth = Math.max(maxConversationWidth, totalWidth);
+            });
+
+            // Calculate title width
+            const titleWidth = measureTextWidth(topic.topic, 16) + 40; // 20px padding on each side
+
+            // Use the larger of title width or conversation width, plus minimal padding
+            const clusterWidth = Math.max(titleWidth, maxConversationWidth) + 20; // Add minimal padding
+
+            // Calculate height based on number of conversations
+            const clusterHeight = Math.max(100, conversations.length * 30 + 60); // Minimum height of 100px
+
+            return {
+                id: parseInt(id),
+                name: topic.topic,
+                size: topic.size,
+                coherence: topic.coherence,
+                conversations: conversations,
+                width: clusterWidth,
+                height: clusterHeight
+            };
+        });
+
+        // Enhanced force simulation with adjusted spacing
+        const simulation = d3.forceSimulation(clusters)
+            .force("charge", d3.forceManyBody().strength(-2000))
+            .force("center", d3.forceCenter(width / 2, height / 2))
+            .force("collision", d3.forceCollide().radius(d => {
+                return Math.sqrt((d.width * d.width + d.height * d.height) / 4) + 30; // Reduced padding
+            }))
+            .force("x", d3.forceX(width / 2).strength(0.1))
+            .force("y", d3.forceY(height / 2).strength(0.1));
 
         // Create main group
-        const g = svg.append("g").attr("class", "islands");
+        const g = svg.append("g");
 
-        // For each cluster, create container
-        clusters.forEach((cluster, i) => {
-            const row = Math.floor(i / numColumns);
-            const col = i % numColumns;
+        // Create cluster groups
+        const clusterGroups = g.selectAll(".cluster")
+            .data(clusters)
+            .join("g")
+            .attr("class", "cluster")
+            .style("cursor", "pointer");
 
-            const x = col * containerWidth;
-            const y = row * containerHeight;
+        // Add cluster backgrounds
+        clusterGroups.append("rect")
+            .attr("rx", 15)
+            .attr("ry", 15)
+            .attr("class", "cluster-bg")
+            .attr("fill", d => `${getColor(d.id)}22`)
+            .attr("stroke", d => getColor(d.id))
+            .attr("stroke-width", 2)
+            .attr("width", d => d.width)
+            .attr("height", d => d.height);
 
-            // Create group for cluster
-            const clusterGroup = g
-                .append("g")
-                .attr("transform", `translate(${x},${y})`)
-                .attr("class", "cluster");
+        // Add cluster titles
+        clusterGroups.append("text")
+            .attr("class", "cluster-title")
+            .attr("x", 20)
+            .attr("y", 30)
+            .attr("fill", getThemeColors(theme).text)
+            .attr("font-size", "16px")
+            .attr("font-weight", "bold")
+            .text(d => d.name);
 
-            // Add rectangle for container
-            clusterGroup
-                .append("rect")
-                .attr("x", 10)
-                .attr("y", 30) // Leave space for cluster name
-                .attr("width", containerWidth - 20)
-                .attr("height", containerHeight - 40)
-                .attr("fill", "none")
-                .attr("stroke", "#ccc")
-                .attr("rx", 10) // Rounded corners
-                .attr("ry", 10);
+        // Create conversation nodes
+        clusterGroups.each(function (cluster) {
+            const group = d3.select(this);
+            const conversationGroup = group.append("g")
+                .attr("class", "conversations")
+                .attr("transform", "translate(20, 50)");
 
-            // Add cluster name
-            clusterGroup
-                .append("text")
-                .attr("x", (containerWidth - 20) / 2 + 10)
-                .attr("y", 20)
-                .attr("text-anchor", "middle")
-                .attr("font-size", "14px")
-                .text(cluster.name);
+            // Count branches for each conversation
+            const branchCounts = new Map();
+            cluster.conversations.forEach(conv => {
+                const baseTitle = conv.title.replace(/ \(Branch \d+\)$/, '');
+                branchCounts.set(baseTitle, (branchCounts.get(baseTitle) || 0) + 1);
+            });
 
-            // Get conversations in this cluster
-            const clusterConversations = data.chartData[0].data.filter(
-                (d) => d.cluster === cluster.id
-            );
+            cluster.conversations.forEach((conv, i) => {
+                const baseTitle = conv.title.replace(/ \(Branch \d+\)$/, '');
+                const hasBranches = branchCounts.get(baseTitle) > 1;
+                const branchCount = branchCounts.get(baseTitle) || 1;
 
-            // Arrange conversations inside the container
-            const numConversations = clusterConversations.length;
-            const convoColumns = Math.ceil(Math.sqrt(numConversations));
-            const convoRows = Math.ceil(numConversations / convoColumns);
+                const convGroup = conversationGroup.append("g")
+                    .attr("transform", `translate(0, ${i * 30})`)
+                    .style("cursor", "pointer");
 
-            const convoWidth = (containerWidth - 20) / convoColumns;
-            const convoHeight = (containerHeight - 40) / convoRows;
-
-            clusterConversations.forEach((convo, index) => {
-                const convoRow = Math.floor(index / convoColumns);
-                const convoCol = index % convoColumns;
-
-                const convoX = convoCol * convoWidth + convoWidth / 2 + 10;
-                const convoY = 30 + convoRow * convoHeight + convoHeight / 2;
-
-                // Add circle for conversation node
-                clusterGroup
-                    .append("circle")
-                    .attr("cx", convoX)
-                    .attr("cy", convoY)
-                    .attr("r", 5)
+                // Main conversation circle
+                convGroup.append("circle")
+                    .attr("r", 6)
                     .attr("fill", getColor(cluster.id))
-                    .attr("fill-opacity", 0.6)
-                    .style("cursor", "pointer")
-                    .on("mouseover", (event) => {
-                        setHoveredPoint({
-                            x: event.pageX,
-                            y: event.pageY,
-                            topic: cluster.name,
-                            title: convo.title,
-                            hasReflection: convo.hasReflection,
-                        });
-                    })
-                    .on("mouseout", () => setHoveredPoint(null))
-                    .on("click", (event) => {
-                        event.stopPropagation();
-                        handleConversationClick(
-                            {
-                                title: convo.title,
-                                cluster: convo.cluster,
-                                hasReflection: convo.hasReflection,
-                            },
-                            event
-                        );
-                    });
+                    .attr("opacity", 0.8);
+
+                if (hasBranches) {
+                    // Add clear branch indicator
+                    convGroup.append("circle")
+                        .attr("r", 14)
+                        .attr("fill", "none")
+                        .attr("stroke", getColor(cluster.id))
+                        .attr("stroke-width", 1.5)
+                        .attr("stroke-dasharray", "3,3")
+                        .attr("opacity", 0.8);
+
+                    // Add branch count badge
+                    convGroup.append("circle")
+                        .attr("cx", 20)
+                        .attr("cy", -8)
+                        .attr("r", 8)
+                        .attr("fill", getColor(cluster.id))
+                        .attr("opacity", 0.9);
+
+                    convGroup.append("text")
+                        .attr("x", 20)
+                        .attr("y", -8)
+                        .attr("text-anchor", "middle")
+                        .attr("dominant-baseline", "middle")
+                        .attr("fill", "#fff")
+                        .attr("font-size", "10px")
+                        .text(branchCount);
+                }
+
+                // Conversation title
+                convGroup.append("text")
+                    .attr("x", hasBranches ? 35 : 15)
+                    .attr("y", 4)
+                    .attr("fill", theme === "dark" ? "#fff" : "#000")
+                    .attr("font-size", "14px")
+                    .text(conv.title);
+
+                // Update the click handler to properly pass chatType
+                convGroup.on("click", (event) => {
+                    event.stopPropagation();
+                    handleConversationClick({
+                        title: baseTitle, // Use baseTitle to always get parent conversation
+                        cluster: cluster.id,
+                        hasReflection: conv.hasReflection,
+                        branchCount: branchCount
+                    }, event);
+                });
             });
         });
 
-        // Implement zoom behavior
-        const zoom = d3
-            .zoom()
-            .scaleExtent([0.5, 4])
+        // Update positions from force simulation
+        simulation.on("tick", () => {
+            clusterGroups.attr("transform", d => {
+                const x = d.x - d.width / 2;
+                const y = d.y - d.height / 2;
+                return `translate(${x},${y})`;
+            });
+        });
+
+        const zoom = d3.zoom()
+            .scaleExtent([0.05, 2])
             .on("zoom", (event) => g.attr("transform", event.transform));
 
         svg.call(zoom);
         zoomRef.current = zoom;
 
-        // Adjust initial zoom to fit the islands nicely
-        const initialScale = 1;
-        const initialTransform = d3.zoomIdentity.scale(initialScale);
+        // Calculate initial bounds
+        const bounds = {
+            width: d3.max(clusters, d => d.x + d.width / 2) - d3.min(clusters, d => d.x - d.width / 2),
+            height: d3.max(clusters, d => d.y + d.height / 2) - d3.min(clusters, d => d.y - d.height / 2)
+        };
+
+        // Set the initial scale to the maximum zoom level (2)
+        const initialScale = 0.05;
+
+        // Calculate the center position for maximum zoom
+        const initialTransform = d3.zoomIdentity
+            .translate(
+                width / 2 - (bounds.width * initialScale) / 2,
+                height / 2 - (bounds.height * initialScale) / 2
+            )
+            .scale(initialScale);
+
         svg.call(zoom.transform, initialTransform);
     }
+
 
     function createStarVisualization() {
         // Clear any existing visualization
         const svg = d3.select(svgRef.current);
         svg.selectAll("*").remove();
 
-        // Add SVG defs for glow filter
+        // Add SVG defs for glow filter and patterns
         const defs = svg.append("defs");
-        const filter = defs
-            .append("filter")
+
+        // Add glow filter
+        const filter = defs.append("filter")
             .attr("id", "glow")
             .attr("x", "-50%")
             .attr("y", "-50%")
             .attr("width", "200%")
             .attr("height", "200%");
 
-        filter
-            .append("feGaussianBlur")
+        filter.append("feGaussianBlur")
             .attr("stdDeviation", "3")
             .attr("result", "coloredBlur");
 
@@ -552,19 +695,29 @@ const MainDashboard = ({ onConversationSelect }) => {  // Add this prop
         feMerge.append("feMergeNode").attr("in", "coloredBlur");
         feMerge.append("feMergeNode").attr("in", "SourceGraphic");
 
+        // Add branch indicator pattern
+        defs.append("pattern")
+            .attr("id", "branchPattern")
+            .attr("patternUnits", "userSpaceOnUse")
+            .attr("width", "4")
+            .attr("height", "4")
+            .append("path")
+            .attr("d", "M-1,1 l2,-2 M0,4 l4,-4 M3,5 l2,-2")
+            .attr("stroke", getThemeColors(theme).branchPattern)
+            .attr("stroke-width", "1");
+
         const width = svgRef.current.clientWidth;
         const height = svgRef.current.clientHeight;
         const centerX = width / 2;
         const centerY = height / 2;
 
-        // Adjusted star layout parameters
+        // Star layout parameters
         const numPoints = 5;
-        const outerRadius = Math.min(width, height) / 6; // Reduced from /4 to /6
+        const outerRadius = Math.min(width, height) / 6;
         const innerRadius = outerRadius * 0.382;
+        const nodeRadius = outerRadius * 1.5;
 
-        // Expanded node placement radius (where the topic nodes will be)
-        const nodeRadius = outerRadius * 1.5; // Place nodes 50% further out than the star points
-
+        // Generate star points
         const getStarPoints = () => {
             const points = [];
             for (let i = 0; i < numPoints * 2; i++) {
@@ -580,11 +733,17 @@ const MainDashboard = ({ onConversationSelect }) => {  // Add this prop
 
         const starPoints = getStarPoints();
 
-        // Distribute topics with more spacing
+        // Analyze branches for each conversation
+        const branchCounts = new Map();
+        data.chartData[0].data.forEach(chat => {
+            const baseTitle = chat.title.replace(/ \(Branch \d+\)$/, '');
+            branchCounts.set(baseTitle, (branchCounts.get(baseTitle) || 0) + 1);
+        });
+
+        // Distribute topics around the star
         const topics = Object.entries(data.topics).map(([id, topic], index) => {
             const pointIndex = (index % numPoints) * 2;
             const angle = (pointIndex * Math.PI) / numPoints - Math.PI / 2;
-            // Place topics at nodeRadius distance from center
             return {
                 id: parseInt(id),
                 name: topic.topic,
@@ -596,14 +755,12 @@ const MainDashboard = ({ onConversationSelect }) => {  // Add this prop
             };
         });
 
-        // Position chat nodes with more spacing
+        // Position chat nodes
         const chats = data.chartData[0].data.map((d, i) => {
             const topic = topics.find((t) => t.id === d.cluster);
             const angle = topic.angle;
-
-            // Create a wider spread for chat nodes
-            const spreadDistance = nodeRadius * 0.4; // Adjust this value to control spread
-            const randomAngle = angle + ((Math.random() - 0.5) * Math.PI) / 6; // Smaller angle variation
+            const spreadDistance = nodeRadius * 0.4;
+            const randomAngle = angle + ((Math.random() - 0.5) * Math.PI) / 6;
             const randomRadius = nodeRadius + (Math.random() - 0.5) * spreadDistance;
 
             return {
@@ -615,7 +772,7 @@ const MainDashboard = ({ onConversationSelect }) => {  // Add this prop
             };
         });
 
-        // Combine all nodes
+        // Combine all nodes and store in ref
         const nodes = [...topics, ...chats];
         nodesDataRef.current = nodes;
 
@@ -642,7 +799,7 @@ const MainDashboard = ({ onConversationSelect }) => {  // Add this prop
                     return path;
                 })()
             )
-            .attr("stroke", theme === "dark" ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.4)")
+            .attr("stroke", getThemeColors(theme).starOutline)
             .attr("fill", "none")
             .attr("stroke-width", 1.5)
             .style("filter", "none")
@@ -654,27 +811,23 @@ const MainDashboard = ({ onConversationSelect }) => {  // Add this prop
             .selectAll("line")
             .data(links)
             .join("line")
-            .attr("stroke", "#999")
+            .attr("stroke", getThemeColors(theme).link)
             .attr("stroke-opacity", 0.3)
             .attr("stroke-width", 0.5);
 
-        // Set up zoom behavior
-        const zoom = d3
-            .zoom()
-            .scaleExtent([0.2, 8])
-            .on("zoom", (event) => g.attr("transform", event.transform));
-
-        svg.call(zoom);
-        zoomRef.current = zoom;
-
-        // Create nodes
+        // Create nodes group
         const node = g
             .append("g")
-            .selectAll("circle")
+            .selectAll("g")
             .data(nodes)
-            .join("circle")
-            .attr("r", (d) => (d.size ? 18 : 10))
-            .attr("fill", (d) => {
+            .join("g")
+            .attr("class", "node")
+            .attr("transform", d => `translate(${d.x},${d.y})`);
+
+        // Base circle for all nodes
+        node.append("circle")
+            .attr("r", d => d.size ? 18 : 10)
+            .attr("fill", d => {
                 if (d.size) {
                     return getColor(d.id);
                 } else if (d.hasReflection) {
@@ -683,76 +836,94 @@ const MainDashboard = ({ onConversationSelect }) => {  // Add this prop
                     return getColor(d.topicId);
                 }
             })
-            .attr("stroke", (d) => (d.hasReflection ? "#FFD700" : null))
-            .attr("stroke-width", (d) => (d.hasReflection ? 1.5 : 0))
-            .attr("fill-opacity", (d) => (d.size ? 1 : 0.6))
-            .on("mouseover", (event, d) => {
-                if (d.size) {
-                    setHoveredPoint({
-                        x: event.pageX,
-                        y: event.pageY,
-                        topic: data.topics[d.id].topic,
-                        coherence: data.topics[d.id].coherence,
-                        title: `${d.size} conversations`,
-                    });
-                } else {
-                    setHoveredPoint({
-                        x: event.pageX,
-                        y: event.pageY,
-                        topic: data.topics[d.topicId].topic,
-                        coherence: data.topics[d.topicId].coherence,
-                        title: d.title,
-                        hasReflection: d.hasReflection,
-                    });
+            .attr("stroke", d => d.hasReflection ? "#FFD700" : null)
+            .attr("stroke-width", d => d.hasReflection ? 1.5 : 0)
+            .attr("fill-opacity", d => d.size ? 1 : 0.6);
+
+        // Add branch indicators
+        node.each(function (d) {
+            if (!d.size) {  // Only for chat nodes, not topic nodes
+                const element = d3.select(this);
+                const baseTitle = d.title?.replace(/ \(Branch \d+\)$/, '');
+                const hasBranches = branchCounts.get(baseTitle) > 1;
+
+                if (hasBranches) {
+                    // Outer dashed ring
+                    element.append("circle")
+                        .attr("r", 14)
+                        .attr("fill", "none")
+                        .attr("stroke", getColor(d.topicId))
+                        .attr("stroke-width", 2)
+                        .attr("stroke-dasharray", "3,3")
+                        .attr("class", "branch-indicator")
+                        .style("opacity", 0.7);
+
+                    // Branch icons
+                    const branchPaths = [
+                        "M -6,-6 L 0,-12 L 6,-6",  // Top branch
+                        "M -6,6 L 0,12 L 6,6"      // Bottom branch
+                    ];
+
+                    element.selectAll(".branch-path")
+                        .data(branchPaths)
+                        .enter()
+                        .append("path")
+                        .attr("d", d => d)
+                        .attr("stroke", getColor(d.topicId))
+                        .attr("stroke-width", 1)
+                        .attr("fill", "none")
+                        .attr("class", "branch-path")
+                        .style("opacity", 0.7);
                 }
+            }
+        });
+
+        // Add labels for topic nodes
+        node.filter(d => d.size)
+            .append("text")
+            .attr("dy", "-1.5em")
+            .attr("text-anchor", "middle")
+            .attr("font-size", "10px")
+            .attr("fill", getThemeColors(theme).text)
+            .attr("opacity", 0.8)
+            .text(d => d.name);
+
+        // Add event handlers
+        node
+            .style("cursor", "pointer")
+            .on("mouseover", (event, d) => {
+                const baseTitle = d.title?.replace(/ \(Branch \d+\)$/, '');
+                const branchCount = !d.size ? branchCounts.get(baseTitle) || 1 : null;
+
+                setHoveredPoint({
+                    x: event.pageX,
+                    y: event.pageY,
+                    topic: d.size ? data.topics[d.id].topic : data.topics[d.topicId].topic,
+                    title: d.title || d.name,
+                    hasReflection: d.hasReflection,
+                    branchCount: branchCount > 1 ? `${branchCount} branches` : 'Single thread',
+                    coherence: d.size ? data.topics[d.id].coherence : null,
+                });
             })
             .on("mouseout", () => setHoveredPoint(null))
             .on("click", (event, d) => {
                 event.stopPropagation();
                 if (d.size) {
                     setSelectedCluster(d.id);
+                    centerOnNode(d); // Pass the node data directly
                 } else {
                     handleConversationClick(
                         {
                             title: d.title,
                             cluster: d.topicId,
-                            hasReflection: d.hasReflection,
+                            hasReflection: d.hasReflection
                         },
                         event
                     );
                 }
-            })
-            .style("cursor", "pointer");
-
-        // Create labels with adjusted positioning
-        const labels = g
-            .append("g")
-            .selectAll("text")
-            .data(topics)
-            .join("text")
-            .attr("text-anchor", "middle")
-            .attr("dy", "-1em")
-            .attr("font-size", "10px")
-            .text((d) => d.name)
-            .attr("fill", theme.includes("dark") || theme.includes("nordic") || theme.includes("singed") ? "#fff" : "#000")
-            .attr("opacity", 0.8)
-            .style("cursor", "pointer")
-            .on("click", (event, d) => {
-                event.stopPropagation();
-                setSelectedCluster(d.id);
             });
 
-        // Add background click handler
-        svg.on("click", () => {
-            setSelectedCluster(null);
-            setShowReflectionDialog(false);
-        });
-
-        // Set up force simulation with settling detection
-        let isSettled = false;
-        let settlingCounter = 0;
-        const requiredSettledTicks = 50;
-
+        // Force simulation setup
         const simulation = d3
             .forceSimulation(nodes)
             .force(
@@ -760,86 +931,63 @@ const MainDashboard = ({ onConversationSelect }) => {  // Add this prop
                 d3
                     .forceLink(links)
                     .id((d) => d.id)
-                    .distance(30) // Increased from 20
+                    .distance(30)
                     .strength(0.3)
-            ) // Reduced from 0.5 to allow more movement
+            )
             .force(
                 "charge",
                 d3.forceManyBody().strength((d) => (d.size ? -300 : -30))
-            ) // Increased repulsion
+            )
             .force(
                 "collide",
                 d3
                     .forceCollide()
-                    .radius((d) => (d.size ? 30 : 10)) // Increased collision radius
+                    .radius((d) => (d.size ? 30 : hasBranches(d) ? 18 : 12))
                     .strength(0.8)
             )
             .force("star", (alpha) => {
                 nodes.forEach((node) => {
                     if (node.size) {
-                        // Keep topic nodes at their assigned positions
-                        const angle =
-                            (topics.findIndex((t) => t.id === node.id) * 2 * Math.PI) /
-                            numPoints -
-                            Math.PI / 2;
+                        const angle = (topics.findIndex((t) => t.id === node.id) * 2 * Math.PI) / numPoints - Math.PI / 2;
                         const targetX = centerX + nodeRadius * Math.cos(angle);
                         const targetY = centerY + nodeRadius * Math.sin(angle);
                         node.vx += (targetX - node.x) * alpha * 0.3;
                         node.vy += (targetY - node.y) * alpha * 0.3;
-                    } else {
-                        // Allow chat nodes more freedom but keep them generally near their topics
-                        const topic = topics.find((t) => t.id === node.topicId);
-                        const angle = topic.angle + ((Math.random() - 0.5) * Math.PI) / 4;
-                        const targetRadius = nodeRadius * (0.8 + Math.random() * 0.4);
-                        const targetX = centerX + targetRadius * Math.cos(angle);
-                        const targetY = centerY + targetRadius * Math.sin(angle);
-                        node.vx += (targetX - node.x) * alpha * 0.1;
-                        node.vy += (targetY - node.y) * alpha * 0.1;
                     }
                 });
+            })
+            .on("tick", () => {
+                link
+                    .attr("x1", (d) => d.source.x)
+                    .attr("y1", (d) => d.source.y)
+                    .attr("x2", (d) => d.target.x)
+                    .attr("y2", (d) => d.target.y);
+
+                node.attr("transform", d => `translate(${d.x},${d.y})`);
             });
 
-        function ticked() {
-            link
-                .attr("x1", (d) => d.source.x)
-                .attr("y1", (d) => d.source.y)
-                .attr("x2", (d) => d.target.x)
-                .attr("y2", (d) => d.target.y);
-
-            node.attr("cx", (d) => d.x).attr("cy", (d) => d.y);
-
-            labels.attr("x", (d) => d.x).attr("y", (d) => d.y - 10);
-
-            if (!isSettled) {
-                const totalMovement = nodes.reduce((sum, node) => {
-                    return sum + Math.sqrt((node.vx || 0) ** 2 + (node.vy || 0) ** 2);
-                }, 0);
-
-                if (totalMovement < 0.1) {
-                    settlingCounter++;
-                    if (settlingCounter >= requiredSettledTicks) {
-                        isSettled = true;
-                        starPath
-                            .transition()
-                            .duration(1000)
-                            .style("filter", "url(#glow)")
-                            .attr("stroke", "#FFD700")
-                            .style("opacity", 0.8)
-                            .attr("stroke-width", 2);
-                    }
-                } else {
-                    settlingCounter = 0;
-                }
-            }
+        // Helper function to check if a node has branches
+        function hasBranches(d) {
+            if (d.size) return false;
+            const baseTitle = d.title?.replace(/ \(Branch \d+\)$/, '');
+            return branchCounts.get(baseTitle) > 1;
         }
 
-        simulation.on("tick", ticked);
+        const zoom = d3
+            .zoom()
+            .scaleExtent([0.2, 8])
+            .on("zoom", (event) => g.attr("transform", event.transform));
 
-        // Adjusted initial zoom transform to account for the new layout
-        const initialScale = 2;
+        svg.call(zoom);
+        zoomRef.current = zoom;
+
+        // Set the initial scale to the maximum zoom level (8)
+        const initialScale = 0.2;
         const padding = 40;
         const visWidth = width - padding;
         const visHeight = height - padding;
+
+        // Center the visualization at maximum zoom
         const initialTransform = d3.zoomIdentity
             .translate(visWidth / 2, visHeight / 2)
             .scale(initialScale)
@@ -847,6 +995,7 @@ const MainDashboard = ({ onConversationSelect }) => {  // Add this prop
 
         svg.call(zoom.transform, initialTransform);
 
+        // Cleanup function
         return () => {
             simulation.stop();
             zoomRef.current = null;
@@ -854,121 +1003,289 @@ const MainDashboard = ({ onConversationSelect }) => {  // Add this prop
         };
     }
 
+    async function fetchAndProcessBranchedConversation(title, chatType) {
+        try {
+            // Fetch all messages including branch information
+            const response = await fetch(
+                `http://127.0.0.1:5001/api/messages_all/${encodeURIComponent(title)}?type=${chatType}`
+            );
+            const data = await response.json();
+
+            if (!data.branches) {
+                console.error('No branches data found');
+                return null;
+            }
+
+            // Create nodes structure for TangentChat
+            const nodes = [];
+            const messageToNodeMap = new Map();
+            let nodeCounter = 1;
+
+            // First, create the main thread node (branch '0')
+            const mainBranch = data.branches['0'];
+            if (mainBranch) {
+                const mainNode = {
+                    id: nodeCounter++,
+                    type: 'main',
+                    title: title,
+                    messages: mainBranch.map(msg => ({
+                        role: msg.sender === 'human' ? 'user' : 'assistant',
+                        content: msg.text,
+                        messageId: msg.message_id
+                    })),
+                    branchId: '0',
+                    x: 0,
+                    y: 0
+                };
+                nodes.push(mainNode);
+
+                // Map each message ID to this node
+                mainBranch.forEach(msg => {
+                    messageToNodeMap.set(msg.message_id, mainNode.id);
+                });
+            }
+
+            // Then create all branch nodes
+            Object.entries(data.branches).forEach(([branchId, messages]) => {
+                if (branchId === '0') return; // Skip main thread as it's already processed
+
+                const firstMessage = messages[0];
+                if (!firstMessage || !firstMessage.parent_message_id) return;
+
+                // Find parent node via message map
+                const parentNodeId = messageToNodeMap.get(firstMessage.parent_message_id);
+                const parentNode = nodes.find(n => n.id === parentNodeId);
+
+                if (!parentNode) {
+                    console.warn(`Parent node not found for branch ${branchId}`);
+                    return;
+                }
+
+                // Find index of parent message in parent node
+                const parentMessageIndex = parentNode.messages.findIndex(
+                    msg => msg.messageId === firstMessage.parent_message_id
+                );
+
+                // Create branch node
+                const branchNode = {
+                    id: nodeCounter++,
+                    type: 'branch',
+                    title: `${title} (Branch ${branchId})`,
+                    messages: messages.map(msg => ({
+                        role: msg.sender === 'human' ? 'user' : 'assistant',
+                        content: msg.text,
+                        messageId: msg.message_id
+                    })),
+                    parentId: parentNodeId,
+                    parentMessageIndex: parentMessageIndex,
+                    branchId: branchId,
+                    // Get full context including parent messages
+                    contextMessages: parentNode.messages.slice(0, parentMessageIndex + 1).concat(
+                        messages.map(msg => ({
+                            role: msg.sender === 'human' ? 'user' : 'assistant',
+                            content: msg.text,
+                            messageId: msg.message_id
+                        }))
+                    ),
+                    x: parentNode.x + 300, // Position relative to parent
+                    y: parentNode.y + (parentMessageIndex * 50) // Stack vertically based on branch point
+                };
+                nodes.push(branchNode);
+
+                // Map all messages in this branch to the branch node
+                messages.forEach(msg => {
+                    messageToNodeMap.set(msg.message_id, branchNode.id);
+                });
+            });
+
+            console.log('Processed nodes structure:', nodes);
+            return nodes;
+
+        } catch (error) {
+            console.error('Error processing branched conversation:', error);
+            return null;
+        }
+    }
+
+    // Then, enhance the visualization of branched conversations in MainDashboard
+    function createBranchIndicator(group, x, y, color, branchCount) {
+        // Main dot
+        group.append('circle')
+            .attr('cx', x)
+            .attr('cy', y)
+            .attr('r', 6)
+            .attr('fill', color)
+            .attr('opacity', 0.8);
+
+        if (branchCount > 1) {
+            // Outer ring for branches
+            group.append('circle')
+                .attr('cx', x)
+                .attr('cy', y)
+                .attr('r', 12)
+                .attr('fill', 'none')
+                .attr('stroke', color)
+                .attr('stroke-width', 1.5)
+                .attr('stroke-dasharray', '3,3')
+                .attr('opacity', 0.6);
+
+            // Branch count indicator
+            group.append('text')
+                .attr('x', x + 16)
+                .attr('y', y)
+                .attr('dy', '0.3em')
+                .attr('fill', getThemeColors(theme).text)
+                .attr('font-size', '12px')
+                .text(`${branchCount} branches`);
+
+            // Small branch indicators
+            const angleStep = (2 * Math.PI) / branchCount;
+            for (let i = 0; i < branchCount; i++) {
+                const angle = i * angleStep;
+                const bx = x + Math.cos(angle) * 12;
+                const by = y + Math.sin(angle) * 12;
+
+                group.append('circle')
+                    .attr('cx', bx)
+                    .attr('cy', by)
+                    .attr('r', 3)
+                    .attr('fill', color)
+                    .attr('opacity', 0.4);
+            }
+        }
+    }
+
     const buildConversationNodes = (responseData, chatTitle) => {
-        // Ensure we have valid response data
         if (!responseData || !responseData.branches) {
             console.error('Invalid response data structure');
             return [];
         }
 
         const nodes = [];
+        const messageToNodeMap = new Map();
         let nodeIdCounter = 1;
 
-        // Map to keep track of message IDs to node IDs
-        const messageIdToNodeId = {};
+        // First create the main thread (branch '0')
+        const mainBranch = responseData.branches['0'];
+        if (mainBranch) {
+            const mainNode = {
+                id: nodeIdCounter++,
+                title: chatTitle,
+                messages: mainBranch.map(msg => ({
+                    role: msg.sender === 'human' ? 'user' : 'assistant',
+                    content: msg.text,
+                    messageId: msg.message_id
+                })),
+                type: 'main',
+                branchId: '0'
+            };
+            nodes.push(mainNode);
+            mainBranch.forEach(msg => messageToNodeMap.set(msg.message_id, mainNode.id));
+        }
 
-        // First, create nodes for each branch
+        // Then create all branch nodes
         Object.entries(responseData.branches).forEach(([branchId, messages]) => {
-            if (!Array.isArray(messages)) {
-                console.error(`Invalid messages for branch ${branchId}`);
+            if (branchId === '0') return; // Skip main thread
+
+            const firstMessage = messages[0];
+            if (!firstMessage?.parent_message_id) return;
+
+            const parentNodeId = messageToNodeMap.get(firstMessage.parent_message_id);
+            const parentNode = nodes.find(n => n.id === parentNodeId);
+
+            if (!parentNode) {
+                console.warn(`Parent node not found for branch ${branchId}`);
                 return;
             }
 
-            // Create formatted messages
-            const formattedMessages = messages.map((msg) => ({
-                role: msg.sender === 'human' ? 'user' : 'assistant',
-                content: msg.text,
-                messageId: msg.message_id,
-            }));
+            const parentMessageIndex = parentNode.messages.findIndex(
+                msg => msg.messageId === firstMessage.parent_message_id
+            );
 
-            // Create node
-            const nodeId = nodeIdCounter++;
-            const node = {
-                id: nodeId,
+            const branchNode = {
+                id: nodeIdCounter++,
                 title: chatTitle,
-                messages: formattedMessages,
+                messages: messages.map(msg => ({
+                    role: msg.sender === 'human' ? 'user' : 'assistant',
+                    content: msg.text,
+                    messageId: msg.message_id
+                })),
                 type: 'branch',
-                parentId: null, // We'll set this later
-                parentMessageIndex: 0, // Adjust if needed
-                branchId: branchId,
-                x: 0,
-                y: 0,
+                parentId: parentNodeId,
+                parentMessageIndex: parentMessageIndex >= 0 ? parentMessageIndex : 0,
+                branchId: branchId
             };
 
-            nodes.push(node);
-
-            // Map message IDs to node IDs
-            formattedMessages.forEach((msg) => {
-                messageIdToNodeId[msg.messageId] = nodeId;
-            });
+            nodes.push(branchNode);
+            messages.forEach(msg => messageToNodeMap.set(msg.message_id, branchNode.id));
         });
 
-        // Now set parentId for each node
-        nodes.forEach((node) => {
-            // For the main branch (branchId '0'), parentId is null
-            if (node.branchId === '0') {
-                node.parentId = null;
-            } else {
-                // For other branches, find the parent message's nodeId
-                const branchMessages = responseData.branches[node.branchId];
-                const firstMessage = branchMessages[0];
-                if (firstMessage.parent_message_id) {
-                    const parentNodeId = messageIdToNodeId[firstMessage.parent_message_id];
-                    if (parentNodeId) {
-                        node.parentId = parentNodeId;
-                    } else {
-                        console.warn(`Parent message ID ${firstMessage.parent_message_id} not found`);
-                    }
-                }
-            }
-        });
-
+        console.log("Built nodes:", nodes); // Debug output
         return nodes;
     };
 
+    // Helper function to truncate text
+    function truncateText(text, maxWidth, font) {
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        context.font = font;
+
+        if (context.measureText(text).width <= maxWidth) {
+            return text;
+        }
+
+        let truncated = text;
+        while (context.measureText(truncated + '...').width > maxWidth && truncated.length > 0) {
+            truncated = truncated.slice(0, -1);
+        }
+        return truncated + '...';
+    }
+
+    // Helper function to calculate bounds of all clusters
+    function calculateBounds(clusters) {
+        const positions = clusters.map(d => ({
+            left: d.x - d.width / 2,
+            right: d.x + d.width / 2,
+            top: d.y - d.height / 2,
+            bottom: d.y + d.height / 2
+        }));
+
+        return {
+            x: d3.min(positions, d => d.left),
+            y: d3.min(positions, d => d.top),
+            width: d3.max(positions, d => d.right) - d3.min(positions, d => d.left),
+            height: d3.max(positions, d => d.bottom) - d3.min(positions, d => d.top)
+        };
+    }
 
     const handleConversationClick = async (point, event) => {
         try {
-            // Calculate click position
-            let clickPosition = {
-                x: window.innerWidth / 2,
-                y: window.innerHeight / 2,
+            const clickPosition = {
+                x: event?.clientX || window.innerWidth / 2,
+                y: event?.clientY || window.innerHeight / 2
             };
 
-            if (event?.target) {
-                const rect = event.target.getBoundingClientRect();
-                clickPosition = {
-                    x: rect.left + rect.width / 2,
-                    y: rect.top + rect.height / 2,
-                };
-            }
+            // Extract base title without branch information
+            const baseTitle = point.title.replace(/ \(Branch \d+\)$/, '');
 
-            console.log('Attempting to fetch conversation:', point.title);
-
-            // Extract base chat title if it includes branch information
-            const baseChatTitle = point.title.replace(/ \(Branch \d+\)$/, '');
-
-            // Try both chat types
-            let messageData = await fetchAllMessages(baseChatTitle, 'claude');
-            if (!messageData || !messageData.branches) {
-                console.log('Claude fetch failed, trying ChatGPT...');
-                messageData = await fetchAllMessages(baseChatTitle, 'claude');
-            }
+            // Get the branched data
+            const messageData = await fetchAllMessages(baseTitle, chatType);
 
             if (!messageData || !messageData.branches) {
-                console.error('Failed to fetch messages with either chat type');
+                console.error('Failed to fetch conversation data');
                 return;
             }
 
-            // Build conversation nodes
-            const nodes = buildConversationNodes(messageData, baseChatTitle);
+            // Build nodes structure for TangentChat
+            const nodes = buildConversationNodes(messageData, baseTitle);
+            console.log("Processed nodes:", nodes); // Debug output
 
-            if (nodes.length === 0) {
-                console.error('No nodes were created from the message data');
+            if (!nodes || nodes.length === 0) {
+                console.error('No valid nodes created from message data');
                 return;
             }
 
-            console.log('Successfully built conversation nodes:', nodes);
+            // Pass the complete branch structure to TangentChat
             onConversationSelect(nodes, clickPosition);
 
         } catch (error) {
@@ -976,6 +1293,13 @@ const MainDashboard = ({ onConversationSelect }) => {  // Add this prop
         }
     };
 
+    // Helper function to validate message data structure
+    const isValidMessageData = (data) => {
+        return data &&
+            typeof data === 'object' &&
+            data.branches &&
+            Object.keys(data.branches).length > 0;
+    };
     const createVisualization = useCallback(() => {
         if (!data || !svgRef.current) return;
 
@@ -1077,7 +1401,7 @@ const MainDashboard = ({ onConversationSelect }) => {  // Add this prop
                 svg.selectAll("*").remove();
             }
         };
-    }, [activeTab, data, chatType, createVisualization, visualizationType]);
+    }, [activeTab, data, chatType, createVisualization, visualizationType, theme]);
 
 
     if (isLoading) {
@@ -1095,7 +1419,7 @@ const MainDashboard = ({ onConversationSelect }) => {  // Add this prop
         const encodedTitle = encodeURIComponent(title);
         try {
             const response = await axios.get(
-                `http://127.0.0.1:5000/api/messages_all/${encodedTitle}?type=${chatType}`,
+                `http://127.0.0.1:5001/api/messages_all/${encodedTitle}?type=${chatType}`,
                 {
                     validateStatus: function (status) {
                         return status < 500;
@@ -1125,7 +1449,7 @@ const MainDashboard = ({ onConversationSelect }) => {  // Add this prop
     return (
         <div className="flex min-h-screen bg-gradient-to-b from-background to-background/95 text-foreground">
             <main className="flex-1 ml-12 transition-all duration-300">
-                <div className="mx-auto max-w-[1800px] px-6 py-10">
+                <div className="mx-auto  max-w-[1800px] px-6 py-10">
 
 
                     <div className="grid gap-6 lg:grid-cols-12">

@@ -55,7 +55,7 @@ export default function FileUploader({ onProcessingComplete }) {
             clearInterval(pollInterval.current);
         }
 
-        const url = `http://127.0.0.1:5000/api/process/status/${taskId}`;
+        const url = `http://127.0.0.1:5001/api/process/status/${taskId}`;
 
         const poll = async () => {
             try {
@@ -104,7 +104,7 @@ export default function FileUploader({ onProcessingComplete }) {
         const formData = new FormData();
         formData.append("file", file);
 
-        const url = `http://127.0.0.1:5000/api/process`;
+        const url = `http://127.0.0.1:5001/api/process`;
         try {
             const response = await fetch(url, {
                 method: "POST",

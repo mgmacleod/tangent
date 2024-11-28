@@ -263,28 +263,6 @@ def detect_chat_type(file_path: str) -> Tuple[str, str]:
     except Exception as e:
         raise Exception(f"Error detecting chat type: {str(e)}")
 
-def process_claude_messages(data: list) -> list:
-    """Process Claude format messages"""
-    messages = []
-    for chat in data:
-        for msg in chat.get("chat_messages", []):
-            if not isinstance(msg, dict):
-                continue
-                
-            try:
-                timestamp = pd.to_datetime(msg.get("created_at"))
-            except (ValueError, TypeError):
-                continue
-                
-            messages.append({
-                "chat_name": chat.get("name", "Unnamed Chat"),
-                "chat_id": chat.get("uuid", ""),
-                "message_id": msg.get("uuid", ""),
-                "sender": msg.get("sender", "unknown"),
-                "timestamp": timestamp,
-                "text": msg.get("text", "")
-            })
-    return messages
 
 def generate_reflection_for_cluster(struggle_texts):
     """Generate a reflection for a cluster based on struggle texts"""
@@ -368,172 +346,6 @@ Provide ONLY the topic label, nothing else. Examples:
         print(f"Error generating topic: {str(e)}")
         return "Error"
 
-def process_data():
-    """Process the data and generate all required files"""
-    print("\nProcessing data...")
-
-    # Load raw data
-    with open(os.path.join(DATA_DIR, 'analytics.json'), 'r') as f:
-        data = json.load(f)
-
-    chat_titles = list(data['chat_lengths'].keys())
-
-    # Get embeddings for chat titles
-    print("Getting embeddings for chat titles...")
-    embeddings = get_embeddings(chat_titles)
-    if embeddings is None:
-        raise Exception("Failed to retrieve embeddings.")
-
-    embeddings_array = np.array(embeddings)
-
-    # Perform t-SNE
-    print("Performing t-SNE...")
-    tsne = TSNE(
-        n_components=2,
-        random_state=42,
-        perplexity=30,
-        n_iter=1000,
-        learning_rate='auto',
-        init='random'
-    )
-    embeddings_2d = tsne.fit_transform(embeddings_array)
-
-    # Calculate distances
-    print("Calculating distances...")
-    distances = pdist(embeddings_array, metric='cosine')
-    distance_matrix = squareform(distances)
-
-    # Perform clustering
-    print("Performing clustering...")
-    clusterer = hdbscan.HDBSCAN(
-        min_cluster_size=2,
-        min_samples=1,
-        metric='precomputed',
-        cluster_selection_epsilon=0.3,
-        cluster_selection_method='leaf',
-        prediction_data=True
-    )
-
-    clusters = clusterer.fit_predict(distance_matrix)
-
-    # Handle outliers
-    print("Processing outliers...")
-    outlier_mask = clusters == -1
-    if np.any(outlier_mask):
-        outlier_indices = np.where(outlier_mask)[0]
-        valid_clusters = np.unique(clusters[clusters != -1])
-
-        for idx in outlier_indices:
-            if len(valid_clusters) > 0:
-                distances_to_clusters = {}
-                for valid_cluster in valid_clusters:
-                    cluster_points = clusters == valid_cluster
-                    avg_distance = np.mean(distance_matrix[idx, cluster_points])
-                    distances_to_clusters[valid_cluster] = avg_distance
-
-                nearest_cluster = min(distances_to_clusters.items(), key=lambda x: x[1])[0]
-                clusters[idx] = nearest_cluster
-            else:
-                new_cluster = max(clusters) + 1 if len(clusters) > 0 else 0
-                clusters[idx] = new_cluster
-
-    # Group titles by cluster
-    cluster_titles = defaultdict(list)
-    for title, cluster_id in zip(chat_titles, clusters):
-        cluster_titles[cluster_id].append(title)
-
-    # Load struggle messages
-    with open(os.path.join(DATA_DIR, 'struggles.json'), 'r') as f:
-        struggles_by_chat = json.load(f)
-
-    # Map chat names to cluster IDs
-    chat_name_to_cluster = dict(zip(chat_titles, clusters))
-
-    # Collect struggle texts by cluster
-    struggles_by_cluster = defaultdict(list)
-    for chat_name, struggle_texts in struggles_by_chat.items():
-        cluster_id = chat_name_to_cluster.get(chat_name)
-        if cluster_id is not None:
-            struggles_by_cluster[cluster_id].extend(struggle_texts)
-
-    # Generate topics, reflections, and metadata
-    print("Generating topics and reflections...")
-    cluster_metadata = {}
-
-    for cluster_id, titles in cluster_titles.items():
-        print(f"Processing cluster {cluster_id} with {len(titles)} titles...")
-        topic = generate_topic_for_cluster(titles)
-        struggle_texts = struggles_by_cluster.get(cluster_id, [])
-        reflection = generate_reflection_for_cluster(struggle_texts)
-
-        cluster_metadata[cluster_id] = {
-            "topic": topic,
-            "size": len(titles),
-            "coherence": np.mean([
-                1 - distance_matrix[i, j]
-                for i in np.where(clusters == cluster_id)[0]
-                for j in np.where(clusters == cluster_id)[0]
-                if i < j
-            ]) if len(titles) > 1 else 1.0,
-            "reflection": reflection
-        }
-
-    # **Added Code Starts Here**
-    # Identify chats that have reflections
-    print("Identifying chats with reflections...")
-    chats_with_reflections = set()
-    for cluster_id, meta in cluster_metadata.items():
-        if meta['reflection']:
-            chats_in_cluster = cluster_titles[cluster_id]
-            chats_with_reflections.update(chats_in_cluster)
-
-    # Save chats_with_reflections to a JSON file
-    with open(os.path.join(DATA_DIR, 'chats_with_reflections.json'), 'w') as f:
-        json.dump(list(chats_with_reflections), f)
-    # **Added Code Ends Here**
-
-    # Save results
-    print("Saving results...")
-    with open(os.path.join(DATA_DIR, 'embeddings_2d.json'), 'w') as f:
-        json.dump(embeddings_2d.tolist(), f)
-
-    with open(os.path.join(DATA_DIR, 'clusters.json'), 'w') as f:
-        json.dump(clusters.tolist(), f)
-
-    with open(os.path.join(DATA_DIR, 'topics.json'), 'w') as f:
-        topics_with_metadata = {str(k): v for k, v in cluster_metadata.items()}
-        json.dump(topics_with_metadata, f)
-
-    with open(os.path.join(DATA_DIR, 'chat_titles.json'), 'w') as f:
-        json.dump(chat_titles, f)
-
-    # Generate embeddings for reflections
-    reflections = [meta['reflection'] for meta in cluster_metadata.values()]
-    print("Generating embeddings for reflections...")
-    reflection_embeddings = get_embeddings(reflections)
-
-    # Save reflections and their embeddings
-    with open(os.path.join(DATA_DIR, 'reflections.json'), 'w') as f:
-        reflections_data = {
-            str(cluster_id): {
-                'reflection': meta['reflection'],
-                'embedding': embedding
-            }
-            for cluster_id, meta, embedding in zip(cluster_metadata.keys(), cluster_metadata.values(), reflection_embeddings)
-            if meta['reflection']
-        }
-        json.dump(reflections_data, f)
-
-    # Print statistics
-    num_clusters = len(np.unique(clusters))
-    avg_cluster_size = np.mean([len(titles) for titles in cluster_titles.values()])
-
-    print(f"\nClustering Statistics:")
-    print(f"Number of clusters: {num_clusters}")
-    print(f"Average cluster size: {avg_cluster_size:.1f}")
-
-    return True
-
 def identify_struggle_messages(df):
     """Identify messages where the user expresses struggles"""
     struggle_keywords = [
@@ -557,90 +369,6 @@ def identify_struggle_messages(df):
     struggle_df = df[df['text'].str.contains(pattern, case=False, na=False)]
     return struggle_df
 
-def analyze_claude_chats(filepath: str) -> dict:
-    """Analyze Claude chats and extract analytics"""
-    with open(filepath, 'r') as f:
-        data = json.load(f)
-
-    messages = []
-    for chat in data:
-        for msg in chat["chat_messages"]:
-            messages.append({
-                "chat_name": chat["name"],
-                "chat_id": chat["uuid"],
-                "message_id": msg["uuid"],
-                "sender": msg["sender"],
-                "timestamp": msg["created_at"],
-                "text": msg["text"],
-                "has_attachments": bool(msg.get("attachments")),
-                "has_files": bool(msg.get("files"))
-            })
-
-    df = pd.DataFrame(messages)
-    df["timestamp"] = pd.to_datetime(df["timestamp"])
-
-    messages_by_date = df.groupby(df["timestamp"].dt.strftime("%Y-%m-%d")).size()
-
-    # Identify struggle messages
-    struggle_df = identify_struggle_messages(df)
-
-    # Group struggle messages by chat
-    struggles_by_chat = struggle_df.groupby('chat_name')['text'].apply(list).to_dict()
-
-    analytics = {
-        "basic_stats": {
-            "total_chats": len(data),
-            "total_messages": len(messages),
-            "date_range": {
-                "start": df["timestamp"].min().strftime("%Y-%m-%d"),
-                "end": df["timestamp"].max().strftime("%Y-%m-%d")
-            }
-        },
-        "sender_distribution": df["sender"].value_counts().to_dict(),
-        "messages_by_date": messages_by_date.to_dict(),
-        "chat_lengths": df.groupby("chat_name").size().to_dict(),
-        "struggles": {k: len(v) for k, v in struggles_by_chat.items()}
-    }
-
-    output_dir = Path(DATA_DIR)
-    output_dir.mkdir(exist_ok=True)
-
-    with open(output_dir / "analytics.json", "w") as f:
-        json.dump(analytics, f, indent=2)
-
-    # Save struggle messages
-    with open(output_dir / "struggles.json", "w") as f:
-        json.dump(struggles_by_chat, f, indent=2)
-
-    df["timestamp"] = df["timestamp"].apply(lambda x: x.strftime("%Y-%m-%d %H:%M:%S"))
-    df.to_json(output_dir / "messages.json", orient="records", indent=2)
-
-    return analytics
-
-def generate_topics(clusters, chat_titles):
-    """Generate topics for clusters"""
-    # Group titles by cluster
-    cluster_titles = defaultdict(list)
-    for title, cluster_id in zip(chat_titles, clusters):
-        cluster_titles[cluster_id].append(title)
-
-    # Generate topics for each cluster
-    cluster_metadata = {}
-    for cluster_id, titles in cluster_titles.items():
-        topic = generate_topic_for_cluster(titles)
-        cluster_metadata[str(cluster_id)] = {
-            "topic": topic,
-            "size": len(titles),
-            "coherence": 1.0  # Simplified coherence calculation
-        }
-
-    # Save topics
-    with open(os.path.join(DATA_DIR, 'topics.json'), 'w') as f:
-        json.dump(cluster_metadata, f, indent=2)
-
-
-
-
 def save_state(state_data, month_year, data_dir):
     """Save a specific state with timestamp to the appropriate directory"""
     state_dir = os.path.join(data_dir, 'states')
@@ -657,46 +385,106 @@ def save_state(state_data, month_year, data_dir):
             'total_conversations': state_data['total_conversations']
         }, f)
 
-
 def process_claude_messages(data: list) -> list:
-    """Process Claude format messages and reconstruct conversation tree if possible."""
+    """Process Claude format messages and reconstruct conversation tree."""
     messages = []
+    
+    # First pass: Build message relationships
     for chat in data:
         chat_name = chat.get("name", "Unnamed Chat")
         chat_id = chat.get("uuid", "")
         chat_messages = chat.get("chat_messages", [])
-        # Build a message dictionary
+        
+        # Track parent-child relationships and child counts
+        children_by_parent = defaultdict(list)
         messages_dict = {}
+        
+        # Build parent-child map first
         for msg in chat_messages:
             if not isinstance(msg, dict):
                 continue
+                
             msg_id = msg.get("uuid", "")
-            messages_dict[msg_id] = {
-                'id': msg_id,
-                'parent_id': msg.get('parent', None),  # Assuming 'parent' field exists
-                'message': msg,
-                'children': []
-            }
-        # Link children to parents
-        for msg_id, msg_data in messages_dict.items():
-            parent_id = msg_data['parent_id']
-            if parent_id and parent_id in messages_dict:
-                messages_dict[parent_id]['children'].append(msg_data)
-        # Find root messages
-        root_messages = [msg for msg in messages_dict.values() if not msg['parent_id']]
-        # Traverse the tree(s)
-        for root in root_messages:
-            traverse_claude_tree(root, chat_name, chat_id, messages)
-    return messages
+            parent_id = msg.get("parent", None)
+            
+            if msg_id:
+                messages_dict[msg_id] = msg
+                if parent_id:
+                    children_by_parent[parent_id].append(msg_id)
 
-def traverse_claude_tree(node, chat_name, chat_id, messages, branch_id='0'):
+        # Now process messages with branch information
+        for msg_id, msg in messages_dict.items():
+            try:
+                timestamp = pd.to_datetime(msg.get("created_at"))
+                if pd.isna(timestamp):
+                    continue
+                    
+                parent_id = msg.get("parent")
+                has_multiple_children = len(children_by_parent.get(msg_id, [])) > 1
+                
+                processed_msg = {
+                    "chat_name": chat_name,
+                    "chat_id": chat_id,
+                    "message_id": msg_id,
+                    "parent_message_id": parent_id,
+                    "branch_id": "0",  # Will be updated during tree traversal
+                    "sender": msg.get("sender", "unknown"),
+                    "timestamp": timestamp,
+                    "text": msg.get("text", ""),
+                    "is_branch_point": has_multiple_children
+                }
+                
+                messages.append(processed_msg)
+                
+            except (ValueError, TypeError) as e:
+                print(f"Error processing message timestamp: {e}")
+                continue
+                
+    # Second pass: Assign proper branch IDs through tree traversal
+    # Group messages by chat
+    chats = defaultdict(list)
+    for msg in messages:
+        chats[msg["chat_name"]].append(msg)
+        
+    # Process each chat's messages to update branch IDs
+    processed_messages = []
+    for chat_messages in chats.values():
+        # Find root messages
+        roots = [msg for msg in chat_messages if not msg["parent_message_id"]]
+        
+        # For each root, traverse and update branch IDs
+        for root in roots:
+            branch_queue = [(root, "0")]
+            while branch_queue:
+                current_msg, current_branch = branch_queue.pop(0)
+                current_msg["branch_id"] = current_branch
+                processed_messages.append(current_msg)
+                
+                # Find children
+                children = [
+                    msg for msg in chat_messages 
+                    if msg["parent_message_id"] == current_msg["message_id"]
+                ]
+                
+                # If multiple children, create new branches
+                if len(children) > 1:
+                    for idx, child in enumerate(children):
+                        branch_queue.append((child, f"{current_branch}.{idx}"))
+                elif children:
+                    # Single child continues current branch
+                    branch_queue.append((children[0], current_branch))
+    
+    return processed_messages
+
+def traverse_claude_tree(node, chat_name, chat_id, messages, branch_points, branch_id='0'):
     """Recursively traverse the conversation tree and extract messages."""
     msg = node['message']
     try:
-        # Ensure timestamp is in datetime format
         timestamp = pd.to_datetime(msg.get("created_at"))
         if pd.isna(timestamp):
             return
+            
+        # Add message with branch information
         messages.append({
             "chat_name": chat_name,
             "chat_id": chat_id,
@@ -705,21 +493,23 @@ def traverse_claude_tree(node, chat_name, chat_id, messages, branch_id='0'):
             "branch_id": branch_id,
             "sender": msg.get("sender", "unknown"),
             "timestamp": timestamp,
-            "text": msg.get("text", "")
+            "text": msg.get("text", ""),
+            "is_branch_point": msg.get("uuid", "") in branch_points
         })
-        # If the node has multiple children, we have a branch
+        
+        # If node has multiple children, create new branches
         if len(node['children']) > 1:
             for idx, child in enumerate(node['children']):
-                # Assign a new branch_id for each branch
                 new_branch_id = f"{branch_id}.{idx}"
-                traverse_claude_tree(child, chat_name, chat_id, messages, new_branch_id)
-        else:
-            for child in node['children']:
-                traverse_claude_tree(child, chat_name, chat_id, messages, branch_id)
+                traverse_claude_tree(child, chat_name, chat_id, messages, branch_points, new_branch_id)
+        # If single child, continue current branch
+        elif node['children']:
+            traverse_claude_tree(node['children'][0], chat_name, chat_id, messages, branch_points, branch_id)
+            
     except (ValueError, TypeError) as e:
         print(f"Error processing timestamp: {e}")
         return
-
+    
 def process_chatgpt_messages(data: list) -> list:
     """Process ChatGPT format messages and reconstruct conversation tree with proper timestamp handling."""
     messages = []
@@ -981,6 +771,83 @@ def perform_clustering(distance_matrix, n_points):
     except Exception as e:
         raise Exception(f"Clustering failed: {str(e)}")
 
+def analyze_branches(messages):
+    """
+    Enhanced branch detection that specifically looks for edited message branches
+    """
+    chats_with_branches = {}
+    
+    # First pass: Group messages and build relationships
+    for msg in messages:
+        chat_name = msg.get('chat_name')
+        if not chat_name:
+            continue
+            
+        if chat_name not in chats_with_branches:
+            chats_with_branches[chat_name] = {
+                'messages': [],
+                'message_ids': set(),
+                'parent_children': defaultdict(list),
+                'edit_branches': []  # New: Track specifically edited message branches
+            }
+        
+        chat_data = chats_with_branches[chat_name]
+        msg_id = msg.get('message_id')
+        parent_id = msg.get('parent_message_id')
+        timestamp = pd.to_datetime(msg.get('timestamp'))
+        
+        # Store message with additional metadata
+        msg_data = {
+            **msg,
+            'timestamp_obj': timestamp,
+            'children': [],
+            'is_branch_point': False
+        }
+        
+        chat_data['messages'].append(msg_data)
+        
+        if msg_id:
+            chat_data['message_ids'].add(msg_id)
+            if parent_id:
+                chat_data['parent_children'][parent_id].append(msg_data)
+                
+    # Second pass: Identify edit branches
+    for chat_name, chat_data in chats_with_branches.items():
+        for parent_id, children in chat_data['parent_children'].items():
+            if len(children) > 1:
+                # Sort children by timestamp
+                children.sort(key=lambda x: x['timestamp_obj'])
+                
+                # Check for potential edit branches
+                time_gaps = []
+                for i in range(1, len(children)):
+                    time_diff = (children[i]['timestamp_obj'] - children[i-1]['timestamp_obj']).total_seconds()
+                    time_gaps.append(time_diff)
+                
+                # If there are significant time gaps between children, likely edit branches
+                for i, gap in enumerate(time_gaps):
+                    if gap > 60:  # More than 1 minute gap suggests an edit
+                        branch_data = {
+                            'parent_message': parent_id,
+                            'original_branch': children[i],
+                            'edit_branch': children[i+1],
+                            'time_gap': gap,
+                            'branch_messages': []
+                        }
+                        
+                        # Collect all subsequent messages in this branch
+                        def collect_branch_messages(msg):
+                            branch_data['branch_messages'].append(msg)
+                            msg_id = msg.get('message_id')
+                            if msg_id in chat_data['parent_children']:
+                                for child in chat_data['parent_children'][msg_id]:
+                                    collect_branch_messages(child)
+                        
+                        collect_branch_messages(children[i+1])
+                        chat_data['edit_branches'].append(branch_data)
+    
+    return chats_with_branches
+
 def handle_outliers(clusters, distance_matrix):
     """Handle outlier points in clustering"""
     outlier_indices = np.where(clusters == -1)[0]
@@ -1137,7 +1004,6 @@ def after_request(response):
     print(f"Status: {response.status_code}")
     print(f"Headers: {dict(response.headers)}")
     return response
-
 
 @app.route('/api/process', methods=['POST'])
 def process_uploaded_data():
@@ -1400,6 +1266,132 @@ def get_topics():
         print(f"Error getting topics: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
+
+@app.route('/api/messages/branched', methods=['GET'])
+def get_branched_messages():
+    try:
+        print("\n=== Starting Enhanced Branch Analysis ===")
+        
+        chat_type = request.args.get('type', 'chatgpt')
+        data_dir = CLAUDE_DATA_DIR if chat_type == 'claude' else CHATGPT_DATA_DIR
+        states_dir = os.path.join(data_dir, 'states')
+        
+        # Load latest messages
+        message_files = [f for f in os.listdir(states_dir) if f.startswith('messages_')]
+        if not message_files:
+            return jsonify({'error': 'No message data found'}), 404
+            
+        latest_file = sorted(message_files)[-1]
+        messages_path = os.path.join(states_dir, latest_file)
+        
+        print(f"\nLoading messages from: {messages_path}")
+        with open(messages_path, 'r') as f:
+            all_messages = json.load(f)
+            
+        print(f"\nAnalyzing {len(all_messages)} messages for branches")
+
+        # Perform enhanced branch analysis
+        branched_data = analyze_branches(all_messages)
+        
+        # Transform the analysis into the API response format
+        response_data = {
+            'branched_chats': {},
+            'stats': {
+                'total_chats_analyzed': len(branched_data),
+                'total_branched_chats': 0,
+                'total_messages_processed': len(all_messages),
+                'branching_structure': {},
+                'edit_branches': {}
+            }
+        }
+
+        # Process each chat's branch data
+        for chat_name, chat_data in branched_data.items():
+            edit_branches = chat_data.get('edit_branches', [])
+            if edit_branches:
+                chat_branches = {
+                    'main_branch': [],
+                    'branches': {},
+                    'edit_points': []
+                }
+                
+                # Process each edit branch
+                for idx, branch in enumerate(edit_branches):
+                    branch_id = f"branch_{idx + 1}"
+                    
+                    # Find the parent message in the main conversation
+                    parent_message = next(
+                        (msg for msg in chat_data['messages'] 
+                         if msg.get('message_id') == branch['parent_message']),
+                        None
+                    )
+                    
+                    if parent_message:
+                        # Add parent to main branch if not already there
+                        if parent_message not in chat_branches['main_branch']:
+                            chat_branches['main_branch'].append(parent_message)
+                        
+                        # Add branch information
+                        chat_branches['branches'][branch_id] = {
+                            'parent_message': parent_message,
+                            'branch_start': branch['edit_branch'],
+                            'branch_messages': branch['branch_messages'],
+                            'branch_length': len(branch['branch_messages']),
+                            'time_gap': branch['time_gap'],
+                            'is_edit_branch': True
+                        }
+                        
+                        # Record edit point metadata
+                        chat_branches['edit_points'].append({
+                            'parent_message_id': branch['parent_message'],
+                            'original_message': branch['original_branch'],
+                            'edit_message': branch['edit_branch'],
+                            'time_gap': branch['time_gap']
+                        })
+                
+                if chat_branches['branches']:
+                    response_data['branched_chats'][chat_name] = chat_branches
+                    response_data['stats']['total_branched_chats'] += 1
+                    
+                    # Add detailed statistics
+                    response_data['stats']['branching_structure'][chat_name] = {
+                        'total_branches': len(chat_branches['branches']),
+                        'total_edit_points': len(chat_branches['edit_points']),
+                        'branch_lengths': [
+                            data['branch_length']
+                            for data in chat_branches['branches'].values()
+                        ],
+                        'average_time_gap': np.mean([
+                            branch['time_gap']
+                            for branch in chat_branches['branches'].values()
+                        ])
+                    }
+                    
+                    response_data['stats']['edit_branches'][chat_name] = {
+                        'count': len(edit_branches),
+                        'average_branch_length': np.mean([
+                            len(branch['branch_messages'])
+                            for branch in edit_branches
+                        ]),
+                        'time_gaps': [
+                            branch['time_gap']
+                            for branch in edit_branches
+                        ]
+                    }
+
+        print("\n=== Branch Analysis Complete ===")
+        print(f"Total chats analyzed: {response_data['stats']['total_chats_analyzed']}")
+        print(f"Chats with edit branches: {response_data['stats']['total_branched_chats']}")
+        print(f"Total messages processed: {response_data['stats']['total_messages_processed']}")
+
+        return jsonify(response_data)
+
+    except Exception as e:
+        error_msg = f"Error processing branched messages: {str(e)}"
+        print(error_msg)
+        traceback.print_exc()
+        return jsonify({'error': error_msg}), 500
+
 @app.route('/api/messages_all/<path:chat_name>', methods=['GET'])
 def get_all_chat_messages(chat_name):
     try:
@@ -1512,4 +1504,4 @@ if __name__ == '__main__':
     # Start background tasks
     start_background_tasks()
     print("\nStarting Flask server...")
-    app.run(debug=True)
+    app.run(debug=True, port=5001)  # Changed port to 5001

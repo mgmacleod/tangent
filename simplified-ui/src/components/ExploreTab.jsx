@@ -207,7 +207,7 @@ const ExploreTab = () => {
         setIsChatting(true);
     };
 
-    const url_reflect = `http://127.0.0.1:5000/api/get-reflection`;
+    const url_reflect = `http://127.0.0.1:5001/api/get-reflection`;
     const url_chat = `http://localhost:11434/api/chat`;
 
     const processTranscript = async (text) => {

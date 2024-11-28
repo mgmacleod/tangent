@@ -71,6 +71,7 @@
   * {
     @apply border-border;
   }
+
   body {
     @apply bg-background text-foreground;
   }
@@ -120,31 +121,42 @@
 
 /* Hextech-specific animations and effects */
 @keyframes runeGlow {
-  0%, 100% { filter: drop-shadow(0 0 0.5rem hsl(195 96% 65% / 0.2)); }
-  50% { filter: drop-shadow(0 0 1rem hsl(195 96% 65% / 0.5)); }
+
+  0%,
+  100% {
+    filter: drop-shadow(0 0 0.5rem hsl(195 96% 65% / 0.2));
+  }
+
+  50% {
+    filter: drop-shadow(0 0 1rem hsl(195 96% 65% / 0.5));
+  }
 }
 
 @keyframes runePulse {
-  0%, 100% { opacity: 0.8; }
-  50% { opacity: 1; }
+
+  0%,
+  100% {
+    opacity: 0.8;
+  }
+
+  50% {
+    opacity: 1;
+  }
 }
 
 .hextech-nordic {
   background-image:
     linear-gradient(to bottom,
       hsl(228 30% 15% / 0.9),
-      hsl(228 30% 12% / 0.95)
-    ),
+      hsl(228 30% 12% / 0.95)),
     url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 0l30 30-30 30L0 30z' fill='%23133245' fill-opacity='0.05'/%3E%3C/svg%3E");
 }
 
 /* Hextech card styling */
 .hextech-nordic .card {
-  background: linear-gradient(
-    135deg,
-    hsl(228 30% 18%),
-    hsl(228 30% 15%)
-  );
+  background: linear-gradient(135deg,
+      hsl(228 30% 18%),
+      hsl(228 30% 15%));
   border: 1px solid hsl(195 50% 40% / 0.3);
   box-shadow:
     0 0 0 1px hsl(195 96% 65% / 0.1),
@@ -164,12 +176,10 @@
   left: -100%;
   width: 100%;
   height: 100%;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    hsl(195 96% 65% / 0.2),
-    transparent
-  );
+  background: linear-gradient(90deg,
+      transparent,
+      hsl(195 96% 65% / 0.2),
+      transparent);
   transition: 0.5s;
 }
 
@@ -194,12 +204,10 @@
   left: 0;
   width: 100%;
   height: 2px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    hsl(195 96% 65% / 0.5),
-    transparent
-  );
+  background: linear-gradient(90deg,
+      transparent,
+      hsl(195 96% 65% / 0.5),
+      transparent);
 }
 
 
@@ -248,47 +256,86 @@
   }
 }
 
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+
+  50% {
+    transform: scale(1.3);
+    opacity: 0.3;
+  }
+
+  100% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+}
+
+.cluster-bg {
+  transition: all 0.3s ease;
+}
+
+.cluster:hover .cluster-bg {
+  filter: brightness(1.1);
+}
+
 /* Singed's poison trail effect */
 @keyframes toxicTrail {
-  0% { filter: brightness(0.7) drop-shadow(0 0 5px hsla(150, 100%, 45%, 0.2)); }
-  50% { filter: brightness(0.9) drop-shadow(0 0 15px hsla(150, 100%, 45%, 0.4)); }
-  100% { filter: brightness(0.7) drop-shadow(0 0 5px hsla(150, 100%, 45%, 0.2)); }
+  0% {
+    filter: brightness(0.7) drop-shadow(0 0 5px hsla(150, 100%, 45%, 0.2));
+  }
+
+  50% {
+    filter: brightness(0.9) drop-shadow(0 0 15px hsla(150, 100%, 45%, 0.4));
+  }
+
+  100% {
+    filter: brightness(0.7) drop-shadow(0 0 5px hsla(150, 100%, 45%, 0.2));
+  }
 }
 
 @keyframes bubbling {
-  0%, 100% { transform: translateY(0); opacity: 0.8; }
-  50% { transform: translateY(-5px); opacity: 1; }
+
+  0%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.8;
+  }
+
+  50% {
+    transform: translateY(-5px);
+    opacity: 1;
+  }
 }
 
 /* Vape store neon effect but dimmed */
 @keyframes neonPulse {
-  0%, 100% {
-    filter: brightness(0.7) drop-shadow(0 0 5px hsla(280, 70%, 50%, 0.3))
-            drop-shadow(0 0 10px hsla(150, 100%, 45%, 0.3));
+
+  0%,
+  100% {
+    filter: brightness(0.7) drop-shadow(0 0 5px hsla(280, 70%, 50%, 0.3)) drop-shadow(0 0 10px hsla(150, 100%, 45%, 0.3));
   }
+
   50% {
-    filter: brightness(0.9) drop-shadow(0 0 10px hsla(280, 70%, 50%, 0.5))
-            drop-shadow(0 0 20px hsla(150, 100%, 45%, 0.5));
+    filter: brightness(0.9) drop-shadow(0 0 10px hsla(280, 70%, 50%, 0.5)) drop-shadow(0 0 20px hsla(150, 100%, 45%, 0.5));
   }
 }
 
 .singed-theme {
   background-image:
-    linear-gradient(
-      to bottom,
+    linear-gradient(to bottom,
       hsl(165 60% 12% / 0.9),
-      hsl(165 60% 8% / 0.95)
-    ),
+      hsl(165 60% 8% / 0.95)),
     url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 0l30 30-30 30L0 30z' fill='%23133245' fill-opacity='0.05'/%3E%3C/svg%3E");
 }
 
 /* Laboratory equipment styling */
 .singed-theme .card {
-  background: linear-gradient(
-    135deg,
-    hsl(165 60% 15%),
-    hsl(165 60% 12%)
-  );
+  background: linear-gradient(135deg,
+      hsl(165 60% 15%),
+      hsl(165 60% 12%));
   border: 1px solid hsl(150 50% 30% / 0.3);
   box-shadow:
     0 0 0 1px hsl(150 100% 45% / 0.1),
@@ -310,12 +357,10 @@
   left: -100%;
   width: 100%;
   height: 100%;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    hsl(150 100% 45% / 0.2),
-    transparent
-  );
+  background: linear-gradient(90deg,
+      transparent,
+      hsl(150 100% 45% / 0.2),
+      transparent);
   transition: 0.5s;
 }
 
@@ -346,10 +391,328 @@
   left: 0;
   width: 100%;
   height: 2px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    hsl(150 100% 45% / 0.5),
-    transparent
-  );
+  background: linear-gradient(90deg,
+      transparent,
+      hsl(150 100% 45% / 0.5),
+      transparent);
+}
+
+@layer base {
+  .hextech-nordic {
+    --background: 230 25% 12%;
+    --foreground: 183 100% 95%;
+
+    /* Rich deep blue base with golden accents */
+    --card: 228 30% 15%;
+    --card-foreground: 35 90% 80%;
+
+    --popover: 228 30% 15%;
+    --popover-foreground: 35 90% 80%;
+
+    /* Ethereal blue primary */
+    --primary: 195 96% 65%;
+    --primary-foreground: 228 30% 15%;
+
+    /* Muted gold secondary */
+    --secondary: 35 45% 65%;
+    --secondary-foreground: 228 30% 15%;
+
+    /* Deep space muted */
+    --muted: 228 20% 20%;
+    --muted-foreground: 183 50% 80%;
+
+    /* Runic accent */
+    --accent: 195 96% 65%;
+    --accent-foreground: 228 30% 15%;
+
+    /* Warning red */
+    --destructive: 0 90% 60%;
+    --destructive-foreground: 183 100% 95%;
+
+    /* Mystical borders */
+    --border: 195 50% 40%;
+    --input: 195 50% 40%;
+    --ring: 195 96% 65%;
+
+    /* Sharper corners for a more runic feel */
+    --radius: 0.25rem;
+  }
+}
+
+/* Hextech-specific animations and effects */
+@keyframes runeGlow {
+
+  0%,
+  100% {
+    filter: drop-shadow(0 0 0.5rem hsl(195 96% 65% / 0.2));
+  }
+
+  50% {
+    filter: drop-shadow(0 0 1rem hsl(195 96% 65% / 0.5));
+  }
+}
+
+@keyframes runePulse {
+
+  0%,
+  100% {
+    opacity: 0.8;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+.hextech-nordic {
+  background-image:
+    linear-gradient(to bottom,
+      hsl(228 30% 15% / 0.9),
+      hsl(228 30% 12% / 0.95)),
+    url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 0l30 30-30 30L0 30z' fill='%23133245' fill-opacity='0.05'/%3E%3C/svg%3E");
+}
+
+/* Hextech card styling */
+.hextech-nordic .card {
+  background: linear-gradient(135deg,
+      hsl(228 30% 18%),
+      hsl(228 30% 15%));
+  border: 1px solid hsl(195 50% 40% / 0.3);
+  box-shadow:
+    0 0 0 1px hsl(195 96% 65% / 0.1),
+    0 4px 20px hsl(228 30% 5% / 0.5);
+}
+
+/* Runic button effects */
+.hextech-nordic .button {
+  position: relative;
+  overflow: hidden;
+}
+
+.hextech-nordic .button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg,
+      transparent,
+      hsl(195 96% 65% / 0.2),
+      transparent);
+  transition: 0.5s;
+}
+
+.hextech-nordic .button:hover::before {
+  left: 100%;
+}
+
+/* Glowing elements */
+.hextech-nordic .glow {
+  animation: runeGlow 2s infinite;
+}
+
+.hextech-nordic .pulse {
+  animation: runePulse 4s infinite;
+}
+
+/* Rune-like decorative elements */
+.hextech-nordic .card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(90deg,
+      transparent,
+      hsl(195 96% 65% / 0.5),
+      transparent);
+}
+
+
+
+@layer base {
+  .singed-theme {
+    /* Base colors - toxic green and purple science vibes */
+    --background: 160 70% 8%;
+    --foreground: 120 100% 95%;
+
+    /* Card styling with a laboratory glass feel */
+    --card: 165 60% 12%;
+    --card-foreground: 120 100% 90%;
+
+    /* Popover with toxic gas effect */
+    --popover: 165 60% 12%;
+    --popover-foreground: 120 100% 90%;
+
+    /* Toxic green primary */
+    --primary: 150 100% 45%;
+    --primary-foreground: 165 60% 12%;
+
+    /* Purple secondary for science vibes */
+    --secondary: 280 70% 50%;
+    --secondary-foreground: 165 60% 12%;
+
+    /* Muted toxic clouds */
+    --muted: 165 40% 20%;
+    --muted-foreground: 120 30% 80%;
+
+    /* Bright accent for attention */
+    --accent: 150 100% 45%;
+    --accent-foreground: 165 60% 12%;
+
+    /* Warning red for dangerous chemicals */
+    --destructive: 0 90% 50%;
+    --destructive-foreground: 120 100% 95%;
+
+    /* Laboratory equipment borders */
+    --border: 150 50% 30%;
+    --input: 150 50% 30%;
+    --ring: 150 100% 45%;
+
+    /* Sharp corners for laboratory equipment */
+    --radius: 0.125rem;
+  }
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+
+  50% {
+    transform: scale(1.3);
+    opacity: 0.3;
+  }
+
+  100% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+}
+
+.cluster-bg {
+  transition: all 0.3s ease;
+}
+
+.cluster:hover .cluster-bg {
+  filter: brightness(1.1);
+}
+
+/* Singed's poison trail effect */
+@keyframes toxicTrail {
+  0% {
+    filter: brightness(0.7) drop-shadow(0 0 5px hsla(150, 100%, 45%, 0.2));
+  }
+
+  50% {
+    filter: brightness(0.9) drop-shadow(0 0 15px hsla(150, 100%, 45%, 0.4));
+  }
+
+  100% {
+    filter: brightness(0.7) drop-shadow(0 0 5px hsla(150, 100%, 45%, 0.2));
+  }
+}
+
+@keyframes bubbling {
+
+  0%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.8;
+  }
+
+  50% {
+    transform: translateY(-5px);
+    opacity: 1;
+  }
+}
+
+/* Vape store neon effect but dimmed */
+@keyframes neonPulse {
+
+  0%,
+  100% {
+    filter: brightness(0.7) drop-shadow(0 0 5px hsla(280, 70%, 50%, 0.3)) drop-shadow(0 0 10px hsla(150, 100%, 45%, 0.3));
+  }
+
+  50% {
+    filter: brightness(0.9) drop-shadow(0 0 10px hsla(280, 70%, 50%, 0.5)) drop-shadow(0 0 20px hsla(150, 100%, 45%, 0.5));
+  }
+}
+
+.singed-theme {
+  background-image:
+    linear-gradient(to bottom,
+      hsl(165 60% 12% / 0.9),
+      hsl(165 60% 8% / 0.95)),
+    url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 0l30 30-30 30L0 30z' fill='%23133245' fill-opacity='0.05'/%3E%3C/svg%3E");
+}
+
+/* Laboratory equipment styling */
+.singed-theme .card {
+  background: linear-gradient(135deg,
+      hsl(165 60% 15%),
+      hsl(165 60% 12%));
+  border: 1px solid hsl(150 50% 30% / 0.3);
+  box-shadow:
+    0 0 0 1px hsl(150 100% 45% / 0.1),
+    0 4px 20px hsl(165 60% 5% / 0.5);
+  animation: toxicTrail 4s infinite;
+}
+
+/* Toxic button effects */
+.singed-theme .button {
+  position: relative;
+  overflow: hidden;
+  animation: neonPulse 3s infinite;
+}
+
+.singed-theme .button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg,
+      transparent,
+      hsl(150 100% 45% / 0.2),
+      transparent);
+  transition: 0.5s;
+}
+
+.singed-theme .button:hover::before {
+  left: 100%;
+}
+
+/* Bubbling flask effect */
+.singed-theme .bubble {
+  animation: bubbling 2s infinite;
+}
+
+/* Chemical glow effect */
+.singed-theme .glow {
+  animation: toxicTrail 3s infinite;
+}
+
+/* Vape store-inspired element */
+.singed-theme .neon {
+  animation: neonPulse 4s infinite;
+}
+
+/* Laboratory equipment details */
+.singed-theme .card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(90deg,
+      transparent,
+      hsl(150 100% 45% / 0.5),
+      transparent);
 }

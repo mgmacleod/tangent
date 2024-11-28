@@ -1,29 +1,179 @@
-import React, { useState, useEffect } from 'react';
-import { Check, ChevronDown, Send, Loader2, ChevronUp, Sparkles } from 'lucide-react';
-import { cn } from '../components/lib/utils'
+import React, { useState, useEffect, useRef } from 'react';
+import { Check, ChevronDown, Send, Loader2, ChevronUp, Sparkles, Play, Pause } from 'lucide-react';
+import { cn } from '../components/lib/utils';
 
-export const ChatMessage = ({ message, isCollapsed, onClick }) => {
-  const previewLength = 150;
-  const needsCollapse = message.content?.length > previewLength;
-  const isTranscribing = message.isTranscribing;
-  const isStreaming = message.isStreaming;
+const API_URL = 'https://api.elevenlabs.io/v1/text-to-speech';
+const TTS_CHUNK_SIZE = 1024;
 
-  const renderContinuationIndicator = () => {
-    if (!message.continuationCount) return null;
+// Utility functions
+const splitIntoSentences = (text) => {
+  return text.match(/[^.!?\n]+[.!?\n]+/g) || [text];
+};
 
-    return (
-      <div className="text-xs font-medium text-muted-foreground mt-2 flex items-center gap-2">
-        <div className="flex gap-1">
-          {[...Array(message.continuationCount)].map((_, i) => (
-            <Sparkles key={i} className="w-3 h-3 text-primary" />
-          ))}
-        </div>
-        {message.continuationCount > 1 &&
-          `${message.continuationCount} continuations`
-        }
+const createChunks = (sentences, maxChunkSize = TTS_CHUNK_SIZE) => {
+  const chunks = [];
+  let currentChunk = '';
+
+  for (const sentence of sentences) {
+    if ((currentChunk + sentence).length > maxChunkSize && currentChunk) {
+      chunks.push(currentChunk.trim());
+      currentChunk = '';
+    }
+    currentChunk += sentence;
+  }
+  
+  if (currentChunk) {
+    chunks.push(currentChunk.trim());
+  }
+
+  return chunks;
+};
+
+const renderContinuationIndicator = (message) => {
+  if (!message.continuationCount) return null;
+
+  return (
+    <div className="text-xs font-medium text-muted-foreground mt-2 flex items-center gap-2">
+      <div className="flex gap-1">
+        {[...Array(message.continuationCount)].map((_, i) => (
+          <Sparkles key={i} className="w-3 h-3 text-primary" />
+        ))}
       </div>
-    );
+      {message.continuationCount > 1 &&
+        `${message.continuationCount} continuations`
+      }
+    </div>
+  );
+};
+
+export const ChatMessage = ({ 
+  message, 
+  isCollapsed, 
+  onClick,
+  voiceId = "21m00Tcm4TlvDq8ikWAM",
+  apiKey = "----"
+}) => {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentChunkIndex, setCurrentChunkIndex] = useState(0);
+  const [audioQueue, setAudioQueue] = useState([]);
+  const [playbackProgress, setPlaybackProgress] = useState(0);
+  const audioRef = useRef(null);
+  const chunksRef = useRef([]);
+  
+  // Determine if message needs to be collapsible
+  const needsCollapse = message.content?.length > 150;
+  const isStreaming = message.isStreaming || false;
+  const isTranscribing = message.isTranscribing || false;
+
+  const generateSpeechForChunk = async (text) => {
+    try {
+      const response = await fetch(`${API_URL}/${voiceId}`, {
+        method: 'POST',
+        headers: {
+          'Accept': 'audio/mpeg',
+          'Content-Type': 'application/json',
+          'xi-api-key': apiKey
+        },
+        body: JSON.stringify({
+          text,
+          model_id: "eleven_monolingual_v1",
+          voice_settings: {
+            stability: 0.5,
+            similarity_boost: 0.5
+          }
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate speech');
+      }
+
+      const audioBlob = await response.blob();
+      return URL.createObjectURL(audioBlob);
+    } catch (error) {
+      console.error('Error generating speech for chunk:', error);
+      return null;
+    }
   };
+
+  const handlePlayPause = async () => {
+    if (isPlaying) {
+      audioRef.current?.pause();
+      setIsPlaying(false);
+      setCurrentChunkIndex(0);
+      setAudioQueue([]);
+      setPlaybackProgress(0);
+    } else {
+      setIsPlaying(true);
+      
+      // Initialize chunks if not already done
+      if (chunksRef.current.length === 0) {
+        const sentences = splitIntoSentences(message.content);
+        chunksRef.current = createChunks(sentences);
+      }
+
+      // Generate audio for first chunk if queue is empty
+      if (audioQueue.length === 0) {
+        const audioUrl = await generateSpeechForChunk(chunksRef.current[0]);
+        if (audioUrl) {
+          setAudioQueue([audioUrl]);
+          playChunk(audioUrl);
+        }
+      }
+    }
+  };
+
+  const playChunk = (audioUrl) => {
+    if (audioRef.current) {
+      audioRef.current.src = audioUrl;
+      audioRef.current.play();
+    }
+  };
+
+  const handleAudioEnd = async () => {
+    // Clean up current audio URL
+    if (audioQueue[0]) {
+      URL.revokeObjectURL(audioQueue[0]);
+    }
+
+    // Move to next chunk
+    const nextChunkIndex = currentChunkIndex + 1;
+    if (nextChunkIndex < chunksRef.current.length) {
+      setCurrentChunkIndex(nextChunkIndex);
+      
+      // Generate audio for next chunk
+      const nextAudioUrl = await generateSpeechForChunk(chunksRef.current[nextChunkIndex]);
+      if (nextAudioUrl) {
+        setAudioQueue([nextAudioUrl]);
+        playChunk(nextAudioUrl);
+      }
+
+      // Update progress
+      setPlaybackProgress(Math.round((nextChunkIndex / chunksRef.current.length) * 100));
+    } else {
+      // Reset everything when finished
+      setIsPlaying(false);
+      setCurrentChunkIndex(0);
+      setAudioQueue([]);
+      setPlaybackProgress(0);
+    }
+  };
+
+  // Clean up audio URLs when component unmounts
+  useEffect(() => {
+    return () => {
+      audioQueue.forEach(url => URL.revokeObjectURL(url));
+    };
+  }, [audioQueue]);
+
+  // Reset state when message changes
+  useEffect(() => {
+    chunksRef.current = [];
+    setCurrentChunkIndex(0);
+    setPlaybackProgress(0);
+    setIsPlaying(false);
+    setAudioQueue([]);
+  }, [message.content]);
 
   return (
     <div
@@ -31,7 +181,6 @@ export const ChatMessage = ({ message, isCollapsed, onClick }) => {
       className={cn(
         "group relative p-6 rounded-2xl transition-all duration-300",
         "border border-transparent",
-        // Only apply hover effects if not streaming
         !isStreaming && "hover:border-border hover:shadow-lg hover:shadow-background/5",
         message.role === 'user'
           ? "bg-primary/5 hover:bg-primary/10"
@@ -58,6 +207,45 @@ export const ChatMessage = ({ message, isCollapsed, onClick }) => {
             </>
           )}
         </div>
+
+        {/* TTS controls for AI messages */}
+        {message.role === 'assistant' && !isStreaming && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              handlePlayPause();
+            }}
+            className={cn(
+              "flex items-center gap-2 px-3 py-1.5 rounded-full",
+              "text-xs font-medium transition-colors",
+              "bg-primary/10 hover:bg-primary/20",
+              "text-primary hover:text-primary-foreground"
+            )}
+          >
+            {isPlaying ? (
+              <>
+                <Pause className="w-3 h-3" />
+                Stop
+              </>
+            ) : (
+              <>
+                <Play className="w-3 h-3" />
+                Play
+              </>
+            )}
+          </button>
+        )}
+
+        <audio
+          ref={audioRef}
+          onEnded={handleAudioEnd}
+          onError={() => {
+            setIsPlaying(false);
+            setCurrentChunkIndex(0);
+            setAudioQueue([]);
+            setPlaybackProgress(0);
+          }}
+        />
 
         {needsCollapse && (
           <div className={cn(
@@ -95,7 +283,22 @@ export const ChatMessage = ({ message, isCollapsed, onClick }) => {
         )}
       </div>
 
-      {(!isStreaming && message.role === 'assistant') && renderContinuationIndicator()}
+      {/* Playback progress */}
+      {isPlaying && chunksRef.current.length > 0 && (
+        <div className="mt-2 flex flex-col gap-1">
+          <div className="text-xs text-muted-foreground">
+            Playing chunk {currentChunkIndex + 1} of {chunksRef.current.length}
+          </div>
+          <div className="w-full h-1 bg-primary/20 rounded-full overflow-hidden">
+            <div 
+              className="h-full bg-primary transition-all duration-200"
+              style={{ width: `${playbackProgress}%` }}
+            />
+          </div>
+        </div>
+      )}
+
+      {(!isStreaming && message.role === 'assistant') && renderContinuationIndicator(message)}
 
       {isStreaming && message.streamProgress && (
         <div className="mt-2 text-xs text-muted-foreground">
@@ -105,6 +308,8 @@ export const ChatMessage = ({ message, isCollapsed, onClick }) => {
     </div>
   );
 };
+
+export default ChatMessage;
 
 export const GlassPanel = ({ children, className = '', ...props }) => (
   <div

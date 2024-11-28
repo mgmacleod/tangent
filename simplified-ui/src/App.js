@@ -8,9 +8,9 @@ import './styles/Global.css';
 function App() {
   return (
     <div className="min-h-screen bg-background">
-      <VisualizationProvider>
-        <IntegratedDashboard />
-      </VisualizationProvider>
+        <VisualizationProvider>
+          <IntegratedDashboard />
+        </VisualizationProvider>
     </div>
   );
 }

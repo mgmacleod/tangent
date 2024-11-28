@@ -22,8 +22,9 @@ const SharedHeader = ({
 }) => {
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-background/90 backdrop-blur-md shadow-md">
-      <div className="max-w-7xl mx-auto px-6 py-4 relative flex items-center justify-between">
-        <div className="flex items-center space-x-4">
+      <div className="w-full mx-auto px-8 py-4 relative flex items-center">
+        {/* Left section */}
+        <div className="flex-1 flex items-center justify-start space-x-4">
           {currentView === 'conversation' && (
             <Button
               variant="ghost"
@@ -36,11 +37,13 @@ const SharedHeader = ({
           )}
         </div>
 
-        <div className="flex-1 flex justify-center items-center space-x-4">
+        {/* Center section - Logo */}
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
           <TangentLogo />
         </div>
 
-        <div className="flex items-center space-x-4">
+        {/* Right section */}
+        <div className="flex-1 flex items-center justify-end space-x-4">
           <Button
             variant="outline"
             size="icon"
@@ -56,7 +59,6 @@ const SharedHeader = ({
             <Share2 className="h-4 w-4" />
             Share
           </Button>
-
           <Button
             onClick={onNewThread}
             variant="default"
@@ -311,7 +313,7 @@ export const IntegratedDashboard = () => {
               {view === 'conversation' ? (
                 <motion.div
                   key="conversation"
-                  className="absolute inset-12"
+                  className="absolute inset-1"
                   initial={{
                     opacity: 0,
                     scale: 0.8,
@@ -346,7 +348,7 @@ export const IntegratedDashboard = () => {
               ) : (
                 <motion.div
                   key="dashboard"
-                  className="absolute inset-12"
+                  className="absolute  top-16 right-16 inset-1"
                   initial={{ opacity: 0, x: "-100%" }}
                   animate={{
                     opacity: 1,

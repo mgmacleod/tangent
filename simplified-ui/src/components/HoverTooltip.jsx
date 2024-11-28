@@ -21,19 +21,22 @@ const HoverTooltip = ({ hoveredPoint }) => {
           maxWidth: "320px",
         }}
       >
-        <div className="space-y-2">
-          <div className="font-semibold">{hoveredPoint.topic}</div>
-          <div className="text-sm text-muted-foreground">{hoveredPoint.title}</div>
-          <div className="flex items-center gap-2">
-            <div className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
-              {(hoveredPoint.coherence * 100).toFixed(0)}% coherent
+        <div className="space-y-1">
+          <div className="font-medium">{hoveredPoint.title}</div>
+          <div className="text-sm text-muted-foreground">{hoveredPoint.topic}</div>
+          {hoveredPoint.branchCount && (
+            <div className="text-sm font-medium text-primary">
+              {hoveredPoint.branchCount}
             </div>
-            {hoveredPoint.hasReflection && (
-              <div className="text-xs bg-amber-500/10 text-amber-500 px-2 py-0.5 rounded-full">
-                Has Reflection
-              </div>
-            )}
-          </div>
+          )}
+          {hoveredPoint.hasReflection && (
+            <div className="text-xs text-yellow-500">Has reflection</div>
+          )}
+          {hoveredPoint.coherence && (
+            <div className="text-xs text-muted-foreground">
+              Coherence: {Math.round(hoveredPoint.coherence * 100)}%
+            </div>
+          )}
         </div>
       </motion.div>
     </AnimatePresence>
@@ -41,3 +44,5 @@ const HoverTooltip = ({ hoveredPoint }) => {
 };
 
 export default HoverTooltip;
+
+

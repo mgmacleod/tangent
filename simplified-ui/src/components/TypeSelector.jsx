@@ -15,7 +15,7 @@ export const ChatTypeSelector = ({ chatType, setChatType, onDataUpdate }) => {
     const [error, setError] = useState(null);
 
     const fetchVisualizationData = useCallback(async (type) => {
-        const url = `http://127.0.0.1:5000/api/visualization?type=${type}`;
+        const url = `http://127.0.0.1:5001/api/visualization?type=${type}`;
         console.log("Fetching from:", url);
         
         try {
@@ -158,7 +158,7 @@ export const VisualizationTypeSelector = ({ visualizationType, setVisualizationT
                             ) : (
                                 <Grid className="h-4 w-4" />
                             )}
-                            {visualizationType === 'star' ? 'Star View' : 'Islands View'}
+                            {visualizationType === 'star' ? 'Normal' : 'Islands'}
                         </>
                     )}
                 </div>
