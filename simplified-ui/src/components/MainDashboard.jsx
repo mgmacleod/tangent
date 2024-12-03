@@ -4,15 +4,18 @@ import React, {
     useEffect,
     useState,
     useRef,
-    useMemo,
     useCallback,
     useContext,
 } from "react";
+import { Search, ZoomIn, ZoomOut, RefreshCw } from 'lucide-react';
+
 import ReflectionDialog from './ReflectionDialog';
 import VisualizationPanel from './VisualizationPanel';
 import TopicsPanel from './TopicsPanel';
 import HoverTooltip from './HoverTooltip';
-
+import { Card, CardHeader, CardTitle, CardContent } from './ui/card';
+import { Input } from './ui/input';
+import { debounce } from 'lodash';
 
 // Utility function for getting colors (moved outside component)
 function getColor(index) {
@@ -64,7 +67,6 @@ const MainDashboard = ({ onConversationSelect }) => {  // Add this prop
     const [showReflectionDialog, setShowReflectionDialog] = useState(false);
     const [hoveredPoint, setHoveredPoint] = useState(null);
     const [sortBy, setSortBy] = useState("relevance"); // 'relevance', 'size', 'coherence'
-    const [filterText, setFilterText] = useState("");
     const svgRef = useRef();
     const zoomRef = useRef(null);
     const [isFullscreen, setIsFullscreen] = useState(false);
@@ -77,7 +79,9 @@ const MainDashboard = ({ onConversationSelect }) => {  // Add this prop
     const [isLoadingState, setIsLoadingState] = useState(false);
     const [chatType, setChatType] = useState('claude');
     const [delayedCluster, setDelayedCluster] = useState(null);
-    const [visualizationType, setVisualizationType] = useState('islands'); // 'star' or 'islands'
+    const [visualizationType, setVisualizationType] = useState('star'); // 'star' or 'islands'
+    const [filterText, setFilterText] = useState('');
+    const [filteredData, setFilteredData] = useState(null);
 
     const [theme, setTheme] = useState(() => {
         if (typeof window !== "undefined") {
@@ -182,6 +186,42 @@ const MainDashboard = ({ onConversationSelect }) => {  // Add this prop
         return () => window.removeEventListener("keydown", handleEsc);
     }, []);
 
+    // Debounced filter function
+    const debouncedFilter = useRef(
+        debounce((searchText) => {
+            if (!data) return;
+
+            const filtered = {
+                ...data,
+                chartData: [{
+                    ...data.chartData[0],
+                    data: data.chartData[0].data.filter(item =>
+                        item.title.toLowerCase().includes(searchText.toLowerCase())
+                    )
+                }],
+                topics: Object.fromEntries(
+                    Object.entries(data.topics).filter(([_, topic]) =>
+                        topic.topic.toLowerCase().includes(searchText.toLowerCase())
+                    )
+                )
+            };
+
+            setFilteredData(filtered);
+        }, 2000)
+    ).current;
+
+    // Update filter on text change
+    useEffect(() => {
+        if (filterText) {
+            debouncedFilter(filterText);
+        } else {
+            setFilteredData(null);
+        }
+    }, [filterText]);
+
+    // Use filtered or original data for visualization
+    const visualizationData = filteredData || data;
+
     const handleRefresh = async () => {
         setIsLoading(true);
         const url = `http://127.0.0.1:5001/api/visualization?type=${chatType}`;
@@ -240,7 +280,7 @@ const MainDashboard = ({ onConversationSelect }) => {  // Add this prop
                     const padding = 40;
                     const visWidth = width - padding;
                     const visHeight = height - padding;
-                    const initialScale = 2;
+                    const initialScale = 0.08;
                     const initialTransform = d3.zoomIdentity
                         .translate(visWidth / 2, visHeight / 2)
                         .scale(initialScale)
@@ -330,7 +370,7 @@ const MainDashboard = ({ onConversationSelect }) => {  // Add this prop
     const handleZoomIn = () => {
         if (!zoomRef.current || !svgRef.current) return;
         const currentScale = d3.zoomTransform(svgRef.current).k;
-        const maxScale = visualizationType === 'star' ? 8 : 2;
+        const maxScale = visualizationType === 'star' ? 8 : 0.08;
 
         // Don't zoom in beyond max scale
         if (currentScale * 1.7 <= maxScale) {
@@ -460,7 +500,6 @@ const MainDashboard = ({ onConversationSelect }) => {  // Add this prop
     }, [chatType]);
 
 
-
     function createIslandsVisualization() {
         // Clear existing visualization
         const svg = d3.select(svgRef.current);
@@ -485,24 +524,23 @@ const MainDashboard = ({ onConversationSelect }) => {  // Add this prop
             // Calculate maximum text width among all conversation titles
             let maxConversationWidth = 0;
             conversations.forEach(conv => {
-                // Account for branch indicator space if needed
                 const baseTitle = conv.title.replace(/ \(Branch \d+\)$/, '');
                 const hasBranches = conversations.filter(c =>
                     c.title.replace(/ \(Branch \d+\)$/, '') === baseTitle
                 ).length > 1;
                 const textWidth = measureTextWidth(conv.title, 14);
-                const totalWidth = textWidth + (hasBranches ? 55 : 35); // Include padding and branch indicator
+                const totalWidth = textWidth + (hasBranches ? 55 : 35);
                 maxConversationWidth = Math.max(maxConversationWidth, totalWidth);
             });
 
             // Calculate title width
-            const titleWidth = measureTextWidth(topic.topic, 16) + 40; // 20px padding on each side
+            const titleWidth = measureTextWidth(topic.topic, 16) + 40;
 
             // Use the larger of title width or conversation width, plus minimal padding
-            const clusterWidth = Math.max(titleWidth, maxConversationWidth) + 20; // Add minimal padding
+            const clusterWidth = Math.max(titleWidth, maxConversationWidth) + 20;
 
             // Calculate height based on number of conversations
-            const clusterHeight = Math.max(100, conversations.length * 30 + 60); // Minimum height of 100px
+            const clusterHeight = Math.max(100, conversations.length * 30 + 60);
 
             return {
                 id: parseInt(id),
@@ -520,7 +558,7 @@ const MainDashboard = ({ onConversationSelect }) => {  // Add this prop
             .force("charge", d3.forceManyBody().strength(-2000))
             .force("center", d3.forceCenter(width / 2, height / 2))
             .force("collision", d3.forceCollide().radius(d => {
-                return Math.sqrt((d.width * d.width + d.height * d.height) / 4) + 30; // Reduced padding
+                return Math.sqrt((d.width * d.width + d.height * d.height) / 4) + 30;
             }))
             .force("x", d3.forceX(width / 2).strength(0.1))
             .force("y", d3.forceY(height / 2).strength(0.1));
@@ -546,12 +584,12 @@ const MainDashboard = ({ onConversationSelect }) => {  // Add this prop
             .attr("width", d => d.width)
             .attr("height", d => d.height);
 
-        // Add cluster titles
+        // Add cluster titles with theme-aware color
         clusterGroups.append("text")
             .attr("class", "cluster-title")
             .attr("x", 20)
             .attr("y", 30)
-            .attr("fill", getThemeColors(theme).text)
+            .attr("fill", theme === "light" ? "#000" : "#fff")
             .attr("font-size", "16px")
             .attr("font-weight", "bold")
             .text(d => d.name);
@@ -613,19 +651,18 @@ const MainDashboard = ({ onConversationSelect }) => {  // Add this prop
                         .text(branchCount);
                 }
 
-                // Conversation title
+                // Conversation title with theme-aware color
                 convGroup.append("text")
                     .attr("x", hasBranches ? 35 : 15)
                     .attr("y", 4)
-                    .attr("fill", theme === "dark" ? "#fff" : "#000")
+                    .attr("fill", theme === "light" ? "#000" : "#fff")
                     .attr("font-size", "14px")
                     .text(conv.title);
 
-                // Update the click handler to properly pass chatType
                 convGroup.on("click", (event) => {
                     event.stopPropagation();
                     handleConversationClick({
-                        title: baseTitle, // Use baseTitle to always get parent conversation
+                        title: baseTitle,
                         cluster: cluster.id,
                         hasReflection: conv.hasReflection,
                         branchCount: branchCount
@@ -644,7 +681,7 @@ const MainDashboard = ({ onConversationSelect }) => {  // Add this prop
         });
 
         const zoom = d3.zoom()
-            .scaleExtent([0.05, 2])
+            .scaleExtent([0.02, 8])
             .on("zoom", (event) => g.attr("transform", event.transform));
 
         svg.call(zoom);
@@ -656,10 +693,7 @@ const MainDashboard = ({ onConversationSelect }) => {  // Add this prop
             height: d3.max(clusters, d => d.y + d.height / 2) - d3.min(clusters, d => d.y - d.height / 2)
         };
 
-        // Set the initial scale to the maximum zoom level (2)
-        const initialScale = 0.05;
-
-        // Calculate the center position for maximum zoom
+        const initialScale = 0.02;
         const initialTransform = d3.zoomIdentity
             .translate(
                 width / 2 - (bounds.width * initialScale) / 2,
@@ -669,7 +703,6 @@ const MainDashboard = ({ onConversationSelect }) => {  // Add this prop
 
         svg.call(zoom.transform, initialTransform);
     }
-
 
     function createStarVisualization() {
         // Clear any existing visualization
@@ -718,20 +751,15 @@ const MainDashboard = ({ onConversationSelect }) => {  // Add this prop
         const nodeRadius = outerRadius * 1.5;
 
         // Generate star points
-        const getStarPoints = () => {
-            const points = [];
-            for (let i = 0; i < numPoints * 2; i++) {
-                const radius = i % 2 === 0 ? outerRadius : innerRadius;
-                const angle = (i * Math.PI) / numPoints - Math.PI / 2;
-                points.push({
-                    x: centerX + radius * Math.cos(angle),
-                    y: centerY + radius * Math.sin(angle),
-                });
-            }
-            return points;
-        };
-
-        const starPoints = getStarPoints();
+        const starPoints = [];
+        for (let i = 0; i < numPoints * 2; i++) {
+            const radius = i % 2 === 0 ? outerRadius : innerRadius;
+            const angle = (i * Math.PI) / numPoints - Math.PI / 2;
+            starPoints.push({
+                x: centerX + radius * Math.cos(angle),
+                y: centerY + radius * Math.sin(angle),
+            });
+        }
 
         // Analyze branches for each conversation
         const branchCounts = new Map();
@@ -842,13 +870,12 @@ const MainDashboard = ({ onConversationSelect }) => {  // Add this prop
 
         // Add branch indicators
         node.each(function (d) {
-            if (!d.size) {  // Only for chat nodes, not topic nodes
+            if (!d.size) {
                 const element = d3.select(this);
                 const baseTitle = d.title?.replace(/ \(Branch \d+\)$/, '');
                 const hasBranches = branchCounts.get(baseTitle) > 1;
 
                 if (hasBranches) {
-                    // Outer dashed ring
                     element.append("circle")
                         .attr("r", 14)
                         .attr("fill", "none")
@@ -858,10 +885,9 @@ const MainDashboard = ({ onConversationSelect }) => {  // Add this prop
                         .attr("class", "branch-indicator")
                         .style("opacity", 0.7);
 
-                    // Branch icons
                     const branchPaths = [
-                        "M -6,-6 L 0,-12 L 6,-6",  // Top branch
-                        "M -6,6 L 0,12 L 6,6"      // Bottom branch
+                        "M -6,-6 L 0,-12 L 6,-6",
+                        "M -6,6 L 0,12 L 6,6"
                     ];
 
                     element.selectAll(".branch-path")
@@ -878,13 +904,13 @@ const MainDashboard = ({ onConversationSelect }) => {  // Add this prop
             }
         });
 
-        // Add labels for topic nodes
+        // Add labels for topic nodes with theme-aware color
         node.filter(d => d.size)
             .append("text")
             .attr("dy", "-1.5em")
             .attr("text-anchor", "middle")
             .attr("font-size", "10px")
-            .attr("fill", getThemeColors(theme).text)
+            .attr("fill", theme === "light" ? "#000" : "#fff")
             .attr("opacity", 0.8)
             .text(d => d.name);
 
@@ -910,7 +936,7 @@ const MainDashboard = ({ onConversationSelect }) => {  // Add this prop
                 event.stopPropagation();
                 if (d.size) {
                     setSelectedCluster(d.id);
-                    centerOnNode(d); // Pass the node data directly
+                    centerOnNode(d);
                 } else {
                     handleConversationClick(
                         {
@@ -966,7 +992,6 @@ const MainDashboard = ({ onConversationSelect }) => {  // Add this prop
                 node.attr("transform", d => `translate(${d.x},${d.y})`);
             });
 
-        // Helper function to check if a node has branches
         function hasBranches(d) {
             if (d.size) return false;
             const baseTitle = d.title?.replace(/ \(Branch \d+\)$/, '');
@@ -975,19 +1000,17 @@ const MainDashboard = ({ onConversationSelect }) => {  // Add this prop
 
         const zoom = d3
             .zoom()
-            .scaleExtent([0.2, 8])
+            .scaleExtent([0.08, 8])
             .on("zoom", (event) => g.attr("transform", event.transform));
 
         svg.call(zoom);
         zoomRef.current = zoom;
 
-        // Set the initial scale to the maximum zoom level (8)
-        const initialScale = 0.2;
+        const initialScale = 0.08;
         const padding = 40;
         const visWidth = width - padding;
         const visHeight = height - padding;
 
-        // Center the visualization at maximum zoom
         const initialTransform = d3.zoomIdentity
             .translate(visWidth / 2, visHeight / 2)
             .scale(initialScale)
@@ -1002,6 +1025,47 @@ const MainDashboard = ({ onConversationSelect }) => {  // Add this prop
             nodesDataRef.current = null;
         };
     }
+
+
+    const handleConversationClick = async (point, event) => {
+        try {
+          const baseTitle = point.title.replace(/ \(Branch \d+\)$/, '');
+
+          // Get the branched data
+          const messageData = await fetchAllMessages(baseTitle, chatType);
+
+          if (!messageData || !messageData.branches) {
+            console.error('Failed to fetch conversation data');
+            return;
+          }
+
+          // Build nodes structure for TangentChat
+          const nodes = buildConversationNodes(messageData, baseTitle);
+          console.log("Processed nodes:", nodes);
+
+          if (!nodes || nodes.length === 0) {
+            console.error('No valid nodes created from message data');
+            return;
+          }
+
+          // Get click position or use window center
+          const clickPosition = {
+            x: event?.clientX || window.innerWidth / 2,
+            y: event?.clientY || window.innerHeight / 2
+          };
+
+          // Update the parent component's state through props
+          window.dispatchEvent(new CustomEvent('openConversation', {
+            detail: {
+              nodes,
+              position: clickPosition
+            }
+          }));
+
+        } catch (error) {
+          console.error('Error in conversation click handler:', error);
+        }
+      };
 
     async function fetchAndProcessBranchedConversation(title, chatType) {
         try {
@@ -1258,41 +1322,6 @@ const MainDashboard = ({ onConversationSelect }) => {  // Add this prop
         };
     }
 
-    const handleConversationClick = async (point, event) => {
-        try {
-            const clickPosition = {
-                x: event?.clientX || window.innerWidth / 2,
-                y: event?.clientY || window.innerHeight / 2
-            };
-
-            // Extract base title without branch information
-            const baseTitle = point.title.replace(/ \(Branch \d+\)$/, '');
-
-            // Get the branched data
-            const messageData = await fetchAllMessages(baseTitle, chatType);
-
-            if (!messageData || !messageData.branches) {
-                console.error('Failed to fetch conversation data');
-                return;
-            }
-
-            // Build nodes structure for TangentChat
-            const nodes = buildConversationNodes(messageData, baseTitle);
-            console.log("Processed nodes:", nodes); // Debug output
-
-            if (!nodes || nodes.length === 0) {
-                console.error('No valid nodes created from message data');
-                return;
-            }
-
-            // Pass the complete branch structure to TangentChat
-            onConversationSelect(nodes, clickPosition);
-
-        } catch (error) {
-            console.error('Error in conversation click handler:', error);
-        }
-    };
-
     // Helper function to validate message data structure
     const isValidMessageData = (data) => {
         return data &&
@@ -1445,57 +1474,42 @@ const MainDashboard = ({ onConversationSelect }) => {  // Add this prop
     };
 
 
-
     return (
-        <div className="flex min-h-screen bg-gradient-to-b from-background to-background/95 text-foreground">
-            <main className="flex-1 ml-12 transition-all duration-300">
-                <div className="mx-auto  max-w-[1800px] px-6 py-10">
-
-
-                    <div className="grid gap-6 lg:grid-cols-12">
-                        <div className="lg:col-span-3 space-y-6">
-                            <TopicsPanel
-                                data={data}
-                                sortBy={sortBy}
-                                setSortBy={setSortBy}
-                                selectedCluster={selectedCluster}
-                                handleTopicSelect={handleTopicSelect}
-                                getColor={getColor}
-                            />
-                        </div>
-
-                        <div className="lg:col-span-9 space-y-6">
-                            <VisualizationPanel
-                                activeTab={activeTab}
-                                handleTabChange={handleTabChange}
-                                chatType={chatType}
-                                setChatType={setChatType}
-                                handleDataUpdate={handleDataUpdate}
-                                handleRefresh={handleRefresh}
-                                toggleFullscreen={toggleFullscreen}
-                                handleZoomIn={handleZoomIn}
-                                handleZoomOut={handleZoomOut}
-                                svgRef={svgRef}
-                                createVisualization={createVisualization}
-                                data={data}
-                                visualizationType={visualizationType}
-                                setVisualizationType={setVisualizationType}
-                            />
-                        </div>
-                    </div>
-
-                    <ReflectionDialog
-                        open={showReflectionDialog}
-                        onOpenChange={setShowReflectionDialog}
-                        conversation={selectedConversation}
-                        reflection={selectedConversation ? getReflectionForChat(selectedConversation) : null}
-                    />
-
-                    <HoverTooltip hoveredPoint={hoveredPoint} />
-                </div>
+        <div className="h-screen flex flex-col">
+            <main className="flex-1 relative">
+                <VisualizationPanel {...{
+                    activeTab,
+                    handleTabChange,
+                    chatType,
+                    setChatType,
+                    handleDataUpdate,
+                    handleRefresh,
+                    handleZoomIn,
+                    handleZoomOut,
+                    svgRef,
+                    createVisualization,
+                    data: visualizationData,
+                    visualizationType,
+                    setVisualizationType,
+                    sortBy,
+                    setSortBy,
+                    selectedCluster,
+                    handleTopicSelect,
+                    getColor
+                }} />
             </main>
+
+            {showReflectionDialog && <ReflectionDialog
+                open={showReflectionDialog}
+                onOpenChange={setShowReflectionDialog}
+                conversation={selectedConversation}
+                reflection={selectedConversation ? getReflectionForChat(selectedConversation) : null}
+            />}
+            <HoverTooltip hoveredPoint={hoveredPoint} />
         </div>
     );
+
 };
 
 export default MainDashboard;
+

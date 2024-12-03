@@ -87,7 +87,7 @@ export const ChatTypeSelector = ({ chatType, setChatType, onDataUpdate }) => {
     return (
         <div className="relative">
             <button
-                className="flex h-8 w-[140px] items-center justify-between rounded-md border bg-background px-3 py-2 text-sm hover:bg-accent transition-colors disabled:opacity-50"
+                className="flex h-8 w-[90px] items-center justify-between rounded-md border bg-background px-3 py-2 text-sm hover:bg-accent transition-colors disabled:opacity-50"
                 onClick={() => handleTypeChange(chatType === 'claude' ? 'chatgpt' : 'claude')}
                 disabled={isLoading}
             >
@@ -144,7 +144,7 @@ export const VisualizationTypeSelector = ({ visualizationType, setVisualizationT
     return (
         <div className="relative">
             <button
-                className="flex h-8 w-[140px] items-center justify-between rounded-md border bg-background px-3 py-2 text-sm hover:bg-accent transition-colors disabled:opacity-50"
+                className="flex h-8 w-[90px] items-center justify-between rounded-md border bg-background px-3 py-2 text-sm hover:bg-accent transition-colors disabled:opacity-50"
                 onClick={() => handleTypeChange(visualizationType === 'star' ? 'islands' : 'star')}
                 disabled={isLoading}
             >

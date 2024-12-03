@@ -161,11 +161,12 @@ const ChatInterface = ({
   }, [messages.length]);
 
   return (
-    <div className="h-[75vh] flex flex-col">
+    <div className="flex flex-col h-full">
       {/* Header */}
       <div className={cn(
         "flex-shrink-0 px-6 py-4 border-b border-border",
-        "bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60"
+        "bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60",
+        "sticky top-0 z-10"
       )}>
         <div className="flex items-center justify-between">
           <h2 className="font-semibold text-foreground">
@@ -177,64 +178,73 @@ const ChatInterface = ({
         </div>
       </div>
 
-      {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4 bg-background/50 backdrop-blur-sm">
+      {/* Messages Container */}
+      <div className="flex-1 max-h-[100% -140px] relative">
         <div
           ref={messagesContainerRef}
           onScroll={handleScroll}
-          className="space-y-4"
-        >
-          {messages.map((message, i) => (
-            <ChatMessage
-              key={`${i}-${message.content}`}
-              message={{
-                ...message,
-                isTranscribing: isTranscribing && i === messages.length - 1
-              }}
-              isCollapsed={expandedMessage !== i}
-              onClick={() => setExpandedMessage(expandedMessage === i ? null : i)}
-            />
-          ))}
-
-          {streamingMessage && (
-            <ChatMessage
-              message={{
-                role: 'assistant',
-                content: streamingMessage,
-                isStreaming: true,
-                continuationCount
-              }}
-              isCollapsed={false}
-            />
+          className={cn(
+            "absolute inset-0 overflow-y-auto",
+            "px-6 py-6 space-y-4",
+            "bg-background/50 backdrop-blur-sm"
           )}
+        >
+          {/* Messages */}
+          <div className="space-y-4">
+            {messages.map((message, i) => (
+              <ChatMessage
+                key={`${i}-${message.content}`}
+                message={{
+                  ...message,
+                  isTranscribing: isTranscribing && i === messages.length - 1
+                }}
+                isCollapsed={expandedMessage !== i}
+                onClick={() => setExpandedMessage(expandedMessage === i ? null : i)}
+              />
+            ))}
 
-          <div ref={messagesEndRef} />
+            {streamingMessage && (
+              <ChatMessage
+                message={{
+                  role: 'assistant',
+                  content: streamingMessage,
+                  isStreaming: true,
+                  continuationCount
+                }}
+                isCollapsed={false}
+              />
+            )}
+
+            <div ref={messagesEndRef} />
+          </div>
+
+          {/* Scroll Buttons */}
+          <ScrollButtons
+            containerRef={messagesContainerRef}
+            showScrollTop={showScrollTop}
+            showScrollBottom={showScrollBottom}
+            onScrollTop={scrollToTop}
+            onScrollBottom={() => {
+              shouldAutoScroll.current = true;
+              scrollToBottom();
+            }}
+          />
         </div>
-
-        {/* Scroll Buttons */}
-        <ScrollButtons
-          containerRef={messagesContainerRef}
-          showScrollTop={showScrollTop}
-          showScrollBottom={showScrollBottom}
-          onScrollTop={scrollToTop}
-          onScrollBottom={() => {
-            shouldAutoScroll.current = true;
-            scrollToBottom();
-          }}
-        />
       </div>
 
       {/* Input Area */}
       <div className={cn(
-        "flex-shrink-0 mt-auto p-4 pt-6 border-t pb-3 border-border",
-        "bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60"
+        "flex-shrink-0 border-t border-border",
+        "bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60",
+        "px-4 py-3",
+        "sticky bottom-0 z-10"
       )}>
         <div className="flex gap-3">
           <textarea
             value={input}
             onChange={onInputChange}
             onKeyDown={handleKeyDown}
-            placeholder="hola como estas?"
+            placeholder="Type your message..."
             rows={1}
             className={cn(
               "flex-1 px-4 py-3 rounded-xl resize-none",
@@ -242,9 +252,7 @@ const ChatInterface = ({
               "focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent",
               "placeholder:text-muted-foreground",
               "transition-all duration-300",
-              "disabled:opacity-50 disabled:cursor-not-allowed",
-              "hextech-nordic:bg-blue-950/10 hextech-nordic:border-blue-400/20",
-              "singed-theme:bg-green-950/10 singed-theme:border-green-400/20"
+              "disabled:opacity-50 disabled:cursor-not-allowed"
             )}
             disabled={isLoading || isTranscribing}
           />
@@ -268,11 +276,7 @@ const ChatInterface = ({
               "bg-primary text-primary-foreground",
               "hover:bg-primary/90",
               "shadow-md hover:shadow-lg",
-              "disabled:opacity-50 disabled:cursor-not-allowed",
-              "hextech-nordic:bg-gradient-to-r hextech-nordic:from-blue-500 hextech-nordic:to-blue-600",
-              "hextech-nordic:hover:from-blue-600 hextech-nordic:hover:to-blue-700",
-              "singed-theme:bg-gradient-to-r singed-theme:from-green-500 singed-theme:to-green-600",
-              "singed-theme:hover:from-green-600 singed-theme:hover:to-green-700"
+              "disabled:opacity-50 disabled:cursor-not-allowed"
             )}
           >
             {isLoading ? (
@@ -285,8 +289,6 @@ const ChatInterface = ({
       </div>
     </div>
   );
-
-
 };
 
 export default ChatInterface;

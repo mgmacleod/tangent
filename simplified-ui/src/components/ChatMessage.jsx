@@ -21,7 +21,7 @@ const createChunks = (sentences, maxChunkSize = TTS_CHUNK_SIZE) => {
     }
     currentChunk += sentence;
   }
-  
+
   if (currentChunk) {
     chunks.push(currentChunk.trim());
   }
@@ -46,9 +46,9 @@ const renderContinuationIndicator = (message) => {
   );
 };
 
-export const ChatMessage = ({ 
-  message, 
-  isCollapsed, 
+export const ChatMessage = ({
+  message,
+  isCollapsed,
   onClick,
   voiceId = "21m00Tcm4TlvDq8ikWAM",
   apiKey = "----"
@@ -59,7 +59,7 @@ export const ChatMessage = ({
   const [playbackProgress, setPlaybackProgress] = useState(0);
   const audioRef = useRef(null);
   const chunksRef = useRef([]);
-  
+
   // Determine if message needs to be collapsible
   const needsCollapse = message.content?.length > 150;
   const isStreaming = message.isStreaming || false;
@@ -105,7 +105,7 @@ export const ChatMessage = ({
       setPlaybackProgress(0);
     } else {
       setIsPlaying(true);
-      
+
       // Initialize chunks if not already done
       if (chunksRef.current.length === 0) {
         const sentences = splitIntoSentences(message.content);
@@ -140,7 +140,7 @@ export const ChatMessage = ({
     const nextChunkIndex = currentChunkIndex + 1;
     if (nextChunkIndex < chunksRef.current.length) {
       setCurrentChunkIndex(nextChunkIndex);
-      
+
       // Generate audio for next chunk
       const nextAudioUrl = await generateSpeechForChunk(chunksRef.current[nextChunkIndex]);
       if (nextAudioUrl) {
@@ -175,37 +175,38 @@ export const ChatMessage = ({
     setAudioQueue([]);
   }, [message.content]);
 
+
   return (
-    <div
-      onClick={needsCollapse ? onClick : undefined}
-      className={cn(
-        "group relative p-6 rounded-2xl transition-all duration-300",
-        "border border-transparent",
-        !isStreaming && "hover:border-border hover:shadow-lg hover:shadow-background/5",
-        message.role === 'user'
-          ? "bg-primary/5 hover:bg-primary/10"
-          : "bg-muted hover:bg-muted/80",
-        needsCollapse && isCollapsed ? "cursor-pointer" : "",
-        isTranscribing ? "animate-pulse" : "",
-        "hextech-nordic:border-blue-500/20 hextech-nordic:hover:border-blue-500/40",
-        "singed-theme:border-green-500/20 singed-theme:hover:border-green-500/40"
-      )}
-    >
+    <div className={cn(
+      "group relative p-6 rounded-2xl transition-all duration-300",
+      "border border-transparent",
+      !isStreaming && "hover:border-border hover:shadow-lg hover:shadow-background/5",
+      message.role === 'user'
+        ? "bg-primary/5 hover:bg-primary/10"
+        : "bg-muted hover:bg-muted/80",
+      needsCollapse && isCollapsed ? "cursor-pointer" : "",
+      isTranscribing ? "animate-pulse" : "",
+      "hextech-nordic:border-blue-500/20 hextech-nordic:hover:border-blue-500/40",
+      "singed-theme:border-green-500/20 singed-theme:hover:border-green-500/40"
+    )}>
       <div className="flex items-center gap-3 mb-3">
         <div className={cn(
-          "flex items-center gap-2 text-xs font-medium px-3 py-1.5 rounded-full",
+          "flex items-start gap-2 text-xs font-medium px-3 py-1.5 rounded-full",
+          "text-start", // Add text alignment
           message.role === 'user'
             ? "bg-primary text-primary-foreground"
             : "bg-secondary text-secondary-foreground"
         )}>
-          {message.role === 'user' ? (
-            message.isTranscribing ? 'Recording...' : 'You'
-          ) : (
-            <>
-              <Sparkles className="w-3 h-3" />
-              {isStreaming ? 'AI Typing...' : 'AI'}
-            </>
-          )}
+          <span className="whitespace-nowrap">
+            {message.role === 'user' ? (
+              message.isTranscribing ? 'Recording...' : 'You'
+            ) : (
+              <>
+                <Sparkles className="inline-block w-3 h-3 mr-1" />
+                {isStreaming ? 'AI Typing...' : 'AI'}
+              </>
+            )}
+          </span>
         </div>
 
         {/* TTS controls for AI messages */}
@@ -290,7 +291,7 @@ export const ChatMessage = ({
             Playing chunk {currentChunkIndex + 1} of {chunksRef.current.length}
           </div>
           <div className="w-full h-1 bg-primary/20 rounded-full overflow-hidden">
-            <div 
+            <div
               className="h-full bg-primary transition-all duration-200"
               style={{ width: `${playbackProgress}%` }}
             />

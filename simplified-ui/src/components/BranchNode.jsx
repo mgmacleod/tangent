@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card } from './ui/card';
 import { Badge } from "./index";
-import { ChevronDown, ChevronUp, X, PlusCircle, MessageCircle } from 'lucide-react';
+import { ChevronDown, ChevronUp, X, PlusCircle, MessageCircle, Timer, Edit2, Maximize2 } from 'lucide-react';
 import { RecordingButton } from './RecordingButton';
 import { cn } from './lib/utils';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const generateThreadColor = (seed) => {
     const hues = [210, 330, 160, 280, 40, 190];
@@ -16,6 +17,33 @@ const calculateMessageOffset = (messages, index) => {
         acc + (messages[i].content.length > 150 ? 160 : 120)
     ), 100);
 };
+
+
+const MessageTimestamp = ({ messageIndex, side = 'right' }) => {
+    const baseTime = new Date();
+    const offsetMinutes = messageIndex * 2;
+    baseTime.setMinutes(baseTime.getMinutes() - offsetMinutes);
+
+    const hours = baseTime.getHours().toString().padStart(2, '0');
+    const minutes = baseTime.getMinutes().toString().padStart(2, '0');
+
+    return (
+        <div
+            className={cn(
+                "absolute flex items-center px-4 gap-1",
+                "text-xs font-mono text-muted-foreground/50 hover:text-muted-foreground",
+                "transition-colors duration-200",
+                side === 'right'
+                    ? "left-[calc(100%+16px)] top-4" // Align to top-right of message
+                    : "right-[calc(100%+16px)] top-4"  // Align to top-left of message
+            )}
+        >
+            <Timer className="w-3 h-3" />
+            <span>{hours}:{minutes}</span>
+        </div>
+    );
+};
+
 
 const ExpandButton = ({ isExpanded, onClick }) => (
     <button
@@ -42,10 +70,87 @@ export const BranchNode = ({
     selectedModel,
     currentMessageIndex,
     style,
-    branchId // Add this prop
+    branchId,
+    onUpdateTitle
 }) => {
     const [isRecording, setIsRecording] = useState(null);
     const [expandedMessage, setExpandedMessage] = useState(null);
+    const [isEditing, setIsEditing] = useState(false);
+    const [titleInput, setTitleInput] = useState(node.title || '');
+    const [showTitlePrompt, setShowTitlePrompt] = useState(!node.title);
+    const titleInputRef = useRef(null);
+    const [expandedModal, setExpandedModal] = useState(null);
+
+
+    const generateTitle = async () => {
+        try {
+            const messages = node.messages.slice(0, 3); // Use first 3 messages for context
+            const prompt = `Based on this conversation, suggest a concise and descriptive title (max 5 words):\n\n${messages.map(m => `${m.role}: ${m.content}`).join('\n')
+                }`;
+
+            const response = await fetch('http://localhost:11434/api/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    model: selectedModel,
+                    prompt,
+                    system: "You are a helpful assistant. Respond only with the title - no explanations or additional text.",
+                    stream: false
+                })
+            });
+
+            const data = await response.json();
+            const generatedTitle = data.response.trim();
+            handleTitleUpdate(generatedTitle);
+        } catch (error) {
+            console.error('Error generating title:', error);
+        }
+    };
+
+    const handleTitleUpdate = (newTitle) => {
+        onUpdateTitle(node.id, newTitle);
+        setTitleInput(newTitle);
+        setIsEditing(false);
+        setShowTitlePrompt(false);
+    };
+
+    const renderTitle = () => {
+        if (isEditing) {
+            return (
+                <input
+                    ref={titleInputRef}
+                    value={titleInput}
+                    onChange={(e) => setTitleInput(e.target.value)}
+                    onBlur={() => handleTitleUpdate(titleInput)}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                            handleTitleUpdate(titleInput);
+                        }
+                    }}
+                    className="bg-background px-2 py-1 rounded border border-border focus:outline-none focus:ring-2 focus:ring-ring"
+                    placeholder="Enter title..."
+                    autoFocus
+                />
+            );
+        }
+
+        return (
+            <div className="flex items-center gap-2">
+                <span className="text-lg font-semibold text-foreground">
+                    {node.title || "Untitled Thread"}
+                </span>
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        setIsEditing(true);
+                    }}
+                    className="p-1 rounded-full hover:bg-muted/80 transition-colors"
+                >
+                    <Edit2 className="w-4 h-4 text-muted-foreground" />
+                </button>
+            </div>
+        );
+    };
 
     const sendMessageToLLM = async (message) => {
         try {
@@ -83,6 +188,10 @@ export const BranchNode = ({
         return threadChain;
     };
 
+    const threadInfo = getThreadInfo();
+    const mainColor = threadInfo[threadInfo.length - 1].color;
+    const nodeKey = `node-${node.id}-${branchId || '0'}`;
+
     const handleTranscriptionComplete = async (transcript, index) => {
         setIsRecording(null);
         if (!transcript.trim()) return;
@@ -106,7 +215,7 @@ export const BranchNode = ({
             ...newPosition,
             initialMessage: transcript,
             messages: messages,
-            branchId: `${node.branchId || '0'}.${index}` // Create hierarchical branch IDs
+            branchId: `${node.branchId || '0'}.${index}`
         });
     };
 
@@ -124,106 +233,156 @@ export const BranchNode = ({
         };
     };
 
-    const threadInfo = getThreadInfo();
-    const mainColor = threadInfo[threadInfo.length - 1].color;
-
-    // Generate a unique key for the node
-    const nodeKey = `node-${node.id}-${branchId || '0'}`;
-
-    const renderMessages = () => {
-        if (!isExpanded) return null;
-
-        // Get all messages including the streaming one if it exists
-        const allMessages = node.streamingContent
-            ? [...node.messages, {
-                role: 'assistant',
-                content: node.streamingContent,
-                isStreaming: true
-            }]
-            : node.messages;
+    const MessageModal = ({ message, isOpen, onClose }) => {
+        if (!isOpen || !message) return null;
 
         return (
-            <div className="space-y-4">
-                {allMessages.map((msg, i) => (
-                    <div
-                        key={i}
-                        className={cn(
-                            "relative group",
-                            currentMessageIndex === i && "ring-2 ring-primary"
-                        )}
-                        style={getMessageStyles(i, allMessages.length)}
+            <div className="fixed inset-0 z-50 flex items-center justify-center">
+                <div
+                    className="absolute inset-0 bg-black/30 backdrop-blur-sm"
+                    onClick={onClose}
+                />
+                <div className="w-[80vw] h-[60vh] bg-background rounded-lg shadow-lg z-50 overflow-auto p-6 relative">
+                    <button
+                        onClick={onClose}
+                        className="absolute top-4 right-4 p-2 rounded-full hover:bg-muted/80"
                     >
-                        <div className="p-4 relative z-10">
-                            <div className="flex items-center justify-between mb-2">
-                                <div className="flex items-center gap-2">
-                                    <Badge
-                                        variant={msg.role === 'user' ? 'default' : 'secondary'}
-                                        className="text-xs"
-                                    >
-                                        {msg.role === 'user' ? 'You' : msg.isStreaming ? 'AI Typing...' : 'AI'}
-                                    </Badge>
-                                    <span className="text-sm font-medium text-muted-foreground">
-                                        msg {i + 1} of {allMessages.length}
-                                    </span>
-                                </div>
-                                {msg.content.length > 150 && !msg.isStreaming && (
-                                    <ExpandButton
-                                        isExpanded={expandedMessage === i}
-                                        onClick={() => setExpandedMessage(expandedMessage === i ? null : i)}
-                                    />
-                                )}
-                            </div>
-                            <div className={cn(
-                                "text-sm text-foreground whitespace-pre-wrap",
-                                !msg.isStreaming && expandedMessage !== i && msg.content.length > 150 && "line-clamp-2"
-                            )}>
-                                {msg.content}
-                                {msg.isStreaming && (
-                                    <span className="inline-flex items-center gap-1 ml-1">
-                                        <span className="w-1 h-1 bg-primary rounded-full animate-ping"></span>
-                                        <span className="w-1 h-1 bg-primary rounded-full animate-ping delay-75"></span>
-                                        <span className="w-1 h-1 bg-primary rounded-full animate-ping delay-150"></span>
-                                    </span>
-                                )}
-                            </div>
-                            {!msg.isStreaming && (
-                                <div className="mt-3 flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <button
-                                        className="flex items-center gap-2 text-sm text-primary hover:underline"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            onCreateBranch(node.id, i, {
-                                                x: node.x + 300,
-                                                y: node.y + calculateMessageOffset(allMessages, i) - 60
-                                            });
-                                        }}
-                                    >
-                                        <PlusCircle className="w-4 h-4" />
-                                        Branch from here
-                                    </button>
-                                    <RecordingButton
-                                        variant="branch"
-                                        onTranscriptionComplete={(transcript) =>
-                                            handleTranscriptionComplete(transcript, i)}
-                                        onRecordingStart={() => setIsRecording(i)}
-                                        onRecordingStop={() => setIsRecording(null)}
-                                        className={cn(
-                                            "transition-colors",
-                                            isRecording === i && "text-destructive animate-pulse"
-                                        )}
-                                    />
-                                </div>
-                            )}
+                        <X className="w-5 h-5" />
+                    </button>
+                    <div className="prose dark:prose-invert max-w-none">
+                        <div className="flex items-center gap-2 mb-4">
+                            <Badge variant={message.role === 'user' ? 'default' : 'secondary'} className="text-base">
+                                {message.role === 'user' ? 'You' : 'AI'}
+                            </Badge>
                         </div>
+                        {message.content}
                     </div>
-                ))}
+                </div>
             </div>
         );
     };
 
+    const renderMessages = () => {
+
+        if (!isExpanded) return null;
+
+        const allMessages = node.streamingContent
+            ? [...node.messages, { role: 'assistant', content: node.streamingContent, isStreaming: true }]
+            : node.messages;
+
+        return (
+            <>
+                <div className="space-y-4">
+                    {allMessages.map((msg, i) => (
+                        <div
+                            key={i}
+                            className={cn(
+                                "relative group",
+                                currentMessageIndex === i && "ring-2 ring-primary"
+                            )}
+                            style={getMessageStyles(i, allMessages.length)}
+                        >
+                            <MessageTimestamp messageIndex={i} side={node.type === 'branch' ? 'left' : 'right'} />
+                            <div className="p-4 relative z-10">
+                                <div className="flex items-center justify-between mb-2">
+                                    <div className="flex items-center gap-2">
+                                        <Badge variant={msg.role === 'user' ? 'default' : 'secondary'} className="text-xs">
+                                            {msg.role === 'user' ? 'You' : msg.isStreaming ? 'AI Typing...' : 'AI'}
+                                        </Badge>
+                                        <span className="text-sm font-medium text-muted-foreground">
+                                            msg {i + 1} of {allMessages.length}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        {!msg.isStreaming && (
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setExpandedModal(i);
+                                                }}
+                                                className="p-1.5 rounded-full hover:bg-muted/80 transition-colors"
+                                            >
+                                                <Maximize2 className="w-4 h-4 text-muted-foreground" />
+                                            </button>
+                                        )}
+                                        {msg.content.length > 150 && !msg.isStreaming && (
+                                            <ExpandButton
+                                                isExpanded={expandedMessage === i}
+                                                onClick={() => setExpandedMessage(expandedMessage === i ? null : i)}
+                                            />
+                                        )}
+                                    </div>
+                                </div>
+                                <div className={cn(
+                                    "text-sm text-foreground whitespace-pre-wrap",
+                                    !msg.isStreaming && expandedMessage !== i && msg.content.length > 150 && "line-clamp-2"
+                                )}>
+                                    {msg.content}
+                                    {msg.isStreaming && (
+                                        <span className="inline-flex items-center gap-1 ml-1">
+                                            <span className="w-1 h-1 bg-primary rounded-full animate-ping"></span>
+                                            <span className="w-1 h-1 bg-primary rounded-full animate-ping delay-75"></span>
+                                            <span className="w-1 h-1 bg-primary rounded-full animate-ping delay-150"></span>
+                                        </span>
+                                    )}
+                                </div>
+                                {!msg.isStreaming && (
+                                    <div className="mt-3 flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <button
+                                            className="flex items-center gap-2 text-sm text-primary hover:underline"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onCreateBranch(node.id, i, {
+                                                    x: node.x + 300,
+                                                    y: node.y + calculateMessageOffset(allMessages, i) - 60
+                                                });
+                                            }}
+                                        >
+                                            <PlusCircle className="w-4 h-4" />
+                                            Branch from here
+                                        </button>
+                                        <RecordingButton
+                                            variant="branch"
+                                            onTranscriptionComplete={(transcript) => handleTranscriptionComplete(transcript, i)}
+                                            onRecordingStart={() => setIsRecording(i)}
+                                            onRecordingStop={() => setIsRecording(null)}
+                                            className={cn(
+                                                "transition-colors",
+                                                isRecording === i && "text-destructive animate-pulse"
+                                            )}
+                                        />
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+
+                <AnimatePresence>
+                    <MessageModal
+                        message={allMessages[expandedModal]}
+                        isOpen={expandedModal !== null}
+                        onClose={() => setExpandedModal(null)}
+                    />
+                </AnimatePresence>
+            </>
+        );
+    };
+
+        useEffect(() => {
+        // Show title prompt for new nodes
+        if (node.messages.length === 0) {
+            setShowTitlePrompt(true);
+        }
+        // Generate title after a few messages if still untitled
+        else if (node.messages.length >= 2 && !node.title) {
+            generateTitle();
+        }
+    }, [node.messages.length, node.title]);
+
     return (
         <div
-            className="absolute transition-all duration-200"
+            className="absolute transition-all z-2 duration-200"
             style={style}
             data-node-id={node.id}
             key={nodeKey}
@@ -231,7 +390,7 @@ export const BranchNode = ({
             <Card
                 className={cn(
                     "branch-node relative",
-                    "bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80",
+                    "bg-background/25 backdrop-blur supports-[backdrop-filter]:bg-background/20",
                     "border-2",
                     "hover:shadow-lg transition-all duration-300",
                     isSelected && "ring-2 ring-primary",
@@ -272,9 +431,12 @@ export const BranchNode = ({
                                 />
                             </button>
                             <div className="flex flex-col">
-                                <span className="text-lg font-semibold text-foreground">
-                                    {node.title}
-                                </span>
+                                {renderTitle()}
+                                {showTitlePrompt && !isEditing && (
+                                    <span className="text-xs text-muted-foreground mt-1">
+                                        Click the edit icon to set a title, or wait for auto-generation
+                                    </span>
+                                )}
                                 <div className="flex items-center gap-2 mt-1">
                                     <MessageCircle className="w-4 h-4 text-muted-foreground" />
                                     <span className="text-sm text-muted-foreground">
@@ -296,7 +458,6 @@ export const BranchNode = ({
                         )}
                     </div>
                     {renderMessages()}
-
 
                     {!isExpanded && node.messages.length > 0 && (
                         <div className="mt-2 text-sm text-muted-foreground">

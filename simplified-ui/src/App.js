@@ -1,6 +1,7 @@
 import React from 'react';
 import { IntegratedDashboard } from './components/IntegratedDashboard';
 import VisualizationProvider from './components/VisualizationProvider';
+import OnboardingTour from './components/OnboardingTour';
 
 
 import './styles/Global.css';
@@ -8,9 +9,10 @@ import './styles/Global.css';
 function App() {
   return (
     <div className="min-h-screen bg-background">
-        <VisualizationProvider>
-          <IntegratedDashboard />
-        </VisualizationProvider>
+      <VisualizationProvider>
+        <OnboardingTour />
+        <IntegratedDashboard />
+      </VisualizationProvider>
     </div>
   );
 }

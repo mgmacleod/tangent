@@ -2,9 +2,12 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { BranchNode } from './BranchNode';
 import ChatInterface from './ChatInterface';
 import CanvasToolbar from './CanvasToolbar';
+import ChatContainer from './ChatContainer';
+import FloatingInput from './FloatingInput';
 import { MessageNavigator } from './MessageNavigator'
 import { ModelStatus } from './ModelStatus'
 import { cn } from "./lib/utils";
+import { useVisualization } from './VisualizationProvider';
 
 export function GridBackground({ translate, scale, className }) {
   const gridSize = 20;
@@ -75,50 +78,24 @@ const systemPrompt = `You are a helpful AI assistant. When responding:
 4. Always adapt your response length based on explicit or implicit length cues in the user's question`;
 
 
-const TangentChat = ({ initialConversation, selectedNodePosition }) => {
-  const [nodes, setNodes] = useState(() => {
-      if (!initialConversation) {
-          return [{
-              id: 1,
-              messages: [],
-              x: 100,
-              y: 100,
-              type: 'main',
-              title: 'Main Thread',
-              branchId: '0'
-          }];
-      }
+const TangentChat = ({
+  initialConversation,
+  isPanelCollapsed = false,
+  nodes,
+  setNodes,
+  activeChat,
+  setActiveChat
+}) => {
+  const [selectedNodePosition, setSelectedNodePosition] = useState(null);
 
-      // Calculate positions for nodes based on their relationships
-      return initialConversation.map((node, index) => {
-          let x, y;
-          
-          if (node.type === 'main') {
-              // Position main thread at the selected position or default
-              x = selectedNodePosition?.x || 100;
-              y = selectedNodePosition?.y || 100;
-          } else {
-              // Position branches relative to their parent
-              const parent = initialConversation.find(n => n.id === node.parentId);
-              if (parent) {
-                  // Calculate position based on parent and branch index
-                  const angle = (index * Math.PI) / 4; // Distribute branches in a semi-circle
-                  const radius = 200; // Distance from parent
-                  x = parent.x + radius * Math.cos(angle);
-                  y = parent.y + radius * Math.sin(angle);
-              } else {
-                  x = selectedNodePosition?.x || 300;
-                  y = selectedNodePosition?.y || 100;
-              }
-          }
+  const [temperature, setTemperature] = useState(0.7);
 
-          return {
-              ...node,
-              x,
-              y
-          };
-      });
-  });
+  const { handleRefresh, theme, setTheme } = useVisualization();
+
+
+  const [containerWidth, setContainerWidth] = useState(400);
+
+  const [expandedMessages, setExpandedMessages] = useState(new Set());
 
   const [selectedNode, setSelectedNode] = useState(initialConversation?.id || 1);
   const [focusedMessageIndex, setFocusedMessageIndex] = useState(0);
@@ -131,7 +108,10 @@ const TangentChat = ({ initialConversation, selectedNodePosition }) => {
   const [lastMousePos, setLastMousePos] = useState({ x: 0, y: 0 });
   const [isLoading, setIsLoading] = useState(false);
   const [models, setModels] = useState([]);
+  const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
+  const modelDropdownRef = useRef(null);
   const [selectedModel, setSelectedModel] = useState('');
+  const [chatContainerSize, setChatContainerSize] = useState('normal');
   const [activeContext, setActiveContext] = useState({
     messages: [],
     systemPrompt: '',
@@ -143,46 +123,44 @@ const TangentChat = ({ initialConversation, selectedNodePosition }) => {
     startPos: { x: 0, y: 0 },
     nodeStartPos: { x: 0, y: 0 }
   });
-  const [theme, setTheme] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('theme') || 'light';
-    }
-    return 'light';
-  });
   const [streamingMessage, setStreamingMessage] = useState("");
   const [continuationCount, setContinuationCount] = useState(0);
   const lastResponseTime = useRef(null);
+
+  const [showQuickInput, setShowQuickInput] = useState(true);
+  const [quickInputPosition, setQuickInputPosition] = useState({
+    x: window.innerWidth / 2 - 192, // Half of input width (384/2)
+    y: window.innerHeight - 90
+  });
+
+  const [contentHeight, setContentHeight] = useState(0);
 
   const canvasRef = useRef(null);
   const nodesRef = useRef(nodes);
   const transformRef = useRef({ scale, translate });
 
+  const contentRef = useRef(null);
+
+
   nodesRef.current = nodes;
 
-  const [pressedKeys, setPressedKeys] = useState(new Set());
-  const panSpeedRef = useRef({
-    x: 0,
-    y: 0,
-    acceleration: 0
-  });
-  const animationFrameRef = useRef(null);
-
-  const PAN_SETTINGS = {
-    BASE_SPEED: 5,          // Starting speed in pixels per frame
-    MAX_SPEED: 40,          // Maximum speed in pixels per frame
-    ACCELERATION: 0.2,      // How quickly the speed increases
-    DECELERATION: 0.8      // How quickly the speed decreases when key is released
-  };
 
   // Add a sensitivity factor for panning
-  const PANNING_SENSITIVITY = 0.4;
+  const PANNING_SENSITIVITY = 0.42;
   // Add a sensitivity factor for dragging nodes
 
-  const ZOOM_SENSITIVITY = 0.001;
-  const STACK_SPACING_X = 300; // Horizontal space between branches
-  const STACK_SPACING_Y = 150; // Vertical space between branches
-  const STACK_START_X = 100; // Starting X position
-  const STACK_START_Y = 100; // Starting Y position
+  const ZOOM_SENSITIVITY = 0.0012;
+
+  const getChatContainerWidth = useCallback(() => {
+    const widths = {
+      collapsed: 240,
+      normal: 400,
+      large: 1200,
+      xlarge: Math.floor(window.innerWidth * 0.73)
+    };
+    return widths[chatContainerSize] || widths.normal;
+  }, [chatContainerSize]);
+
 
   const getFullMessageHistory = useCallback((nodeId) => {
     const currentNode = nodes.find(n => n.id === nodeId);
@@ -202,9 +180,28 @@ const TangentChat = ({ initialConversation, selectedNodePosition }) => {
     return currentNode.messages;
   }, [nodes]);
 
+
   useEffect(() => {
     transformRef.current = { scale, translate };
   }, [scale, translate]);
+
+
+  useEffect(() => {
+    if (!contentRef.current) return;
+
+    const height = contentRef.current.getBoundingClientRect().height;
+    setContentHeight(height);
+
+    // Only pan if content exceeds viewport
+    if (height > window.innerHeight) {
+      const overflow = height - window.innerHeight;
+      setTranslate(prev => ({
+        ...prev,
+        y: -overflow + 200 // Leave some space at bottom
+      }));
+    }
+  }, [nodes]); // Run when messages/nodes update
+
 
   useEffect(() => {
     const root = document.documentElement;
@@ -228,21 +225,6 @@ const TangentChat = ({ initialConversation, selectedNodePosition }) => {
     }
   }, [initialConversation, selectedNodePosition]);
 
-  // Initialize with main thread
-  useEffect(() => {
-    if (nodes.length === 0) {
-      setNodes([{
-        id: 1,
-        messages: [],
-        x: 100,
-        y: 100,
-        type: 'main',
-        title: 'Main Thread'
-      }]);
-      setSelectedNode(1);
-    }
-  }, [nodes.length]);
-
   // Fetch available models
   useEffect(() => {
     const fetchModels = async () => {
@@ -260,28 +242,19 @@ const TangentChat = ({ initialConversation, selectedNodePosition }) => {
     fetchModels();
   }, []);
 
-  useEffect(() => {
-    if (!canvasRef.current || !nodes.length) return;
+  const handleToggleMessageExpand = useCallback((messageIndex) => {
+    setExpandedMessages(prev => {
+      const next = new Set(prev);
+      if (next.has(messageIndex)) {
+        next.delete(messageIndex);
+      } else {
+        next.add(messageIndex);
+      }
+      return next;
+    });
+  }, []);
 
-    const viewport = {
-      width: canvasRef.current.clientWidth,
-      height: canvasRef.current.clientHeight
-    };
 
-    // Calculate bounds of all nodes
-    const bounds = calculateNodesBounds(nodes);
-    if (!bounds) return;
-
-    // Calculate ideal scale
-    const newScale = calculateIdealScale(bounds, viewport);
-
-    // Calculate translation to center nodes
-    const newTranslate = calculateCenteringTranslation(bounds, viewport, newScale);
-
-    // Update viewport
-    setScale(newScale);
-    setTranslate(newTranslate);
-  }, [nodes.length]); // Only run when number of nodes changes
 
   const handleToolSelect = useCallback((tool) => {
     setActiveTool(tool);
@@ -329,67 +302,6 @@ const TangentChat = ({ initialConversation, selectedNodePosition }) => {
     setFocusedMessageIndex(messageIndex);
   }, [nodes, scale, expandedNodes]);
 
-  useEffect(() => {
-    const updatePanSpeed = () => {
-      const { acceleration } = panSpeedRef.current;
-      let newAcceleration = acceleration;
-
-      // Update acceleration based on pressed keys
-      if (pressedKeys.size > 0) {
-        newAcceleration = Math.min(acceleration + PAN_SETTINGS.ACCELERATION, 1);
-      } else {
-        newAcceleration = Math.max(acceleration - PAN_SETTINGS.DECELERATION, 0);
-      }
-
-      // Calculate current speed based on acceleration
-      const currentSpeed = PAN_SETTINGS.BASE_SPEED +
-        (PAN_SETTINGS.MAX_SPEED - PAN_SETTINGS.BASE_SPEED) * newAcceleration;
-
-      // Update speeds based on pressed keys
-      let dx = 0;
-      let dy = 0;
-
-      if (pressedKeys.has('arrowleft')) dx += currentSpeed;
-      if (pressedKeys.has('arrowright')) dx -= currentSpeed;
-      if (pressedKeys.has('arrowup')) dy += currentSpeed;
-      if (pressedKeys.has('arrowdown')) dy -= currentSpeed;
-
-      // Update pan speed ref
-      panSpeedRef.current = {
-        x: dx,
-        y: dy,
-        acceleration: newAcceleration
-      };
-
-      // Update translation if there's any movement
-      if (dx !== 0 || dy !== 0 || newAcceleration > 0) {
-        setTranslate(prev => ({
-          x: prev.x + dx,
-          y: prev.y + dy
-        }));
-
-        // Continue animation
-        animationFrameRef.current = requestAnimationFrame(updatePanSpeed);
-      } else {
-        // Stop animation when no movement
-        animationFrameRef.current = null;
-      }
-    };
-
-    // Start animation if keys are pressed or if we're still decelerating
-    if (pressedKeys.size > 0 || panSpeedRef.current.acceleration > 0) {
-      if (!animationFrameRef.current) {
-        animationFrameRef.current = requestAnimationFrame(updatePanSpeed);
-      }
-    }
-
-    // Cleanup
-    return () => {
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-      }
-    };
-  }, [pressedKeys]);
 
   const handleInputChange = (e) => {
     // If it's an event, use e.target.value, otherwise use the value directly
@@ -411,7 +323,7 @@ const TangentChat = ({ initialConversation, selectedNodePosition }) => {
     const contextMessages = currentNode.type === 'branch'
       ? [...(currentNode.contextMessages || []), newMessage]
       : null;
-      
+
     // Update node with user message immediately
     setNodes(prevNodes => prevNodes.map(node =>
       node.id === selectedNode
@@ -443,7 +355,7 @@ const TangentChat = ({ initialConversation, selectedNodePosition }) => {
         system: currentNode.systemPrompt || systemPrompt,
         stream: true,
         options: {
-          temperature: 0.7,
+          temperature: temperature, // Use the temperature state here
           num_ctx: 8192,
           top_p: 0.9,
           top_k: 20,
@@ -561,6 +473,12 @@ const TangentChat = ({ initialConversation, selectedNodePosition }) => {
     }
   };
 
+  const handleUpdateTitle = (nodeId, newTitle) => {
+    setNodes(prevNodes => prevNodes.map(node =>
+      node.id === nodeId ? { ...node, title: newTitle } : node
+    ));
+  };
+
   const buildConversationContext = (node) => {
     let context = {
       messages: [],
@@ -592,17 +510,20 @@ const TangentChat = ({ initialConversation, selectedNodePosition }) => {
     return context;
   };
 
-  const handleCreateBranch = (parentNodeId, messageIndex, position = null) => {
+  const handleCreateBranch = async (parentNodeId, messageIndex, position = null) => {
     const parentNode = nodes.find(n => n.id === parentNodeId);
     if (!parentNode) return;
 
-    const template = {
-      ...defaultTemplate,
-      title: `Branch from "${parentNode.title}"`,
-      systemPrompt: parentNode.systemPrompt,
-    };
+    // Calculate position using the new function instead of using provided position
+    const branchPosition = calculateBranchPosition(parentNode, messageIndex, nodes);
 
-    const newNode = createBranch(parentNode, template, nodes, messageIndex, position);
+    const newNode = createBranch(
+      parentNode,
+      defaultTemplate,
+      nodes,
+      messageIndex,
+      branchPosition // Use calculated position
+    );
 
     // Update the active context with the full context from parent
     const branchContext = buildConversationContext(newNode);
@@ -611,6 +532,7 @@ const TangentChat = ({ initialConversation, selectedNodePosition }) => {
     setNodes(prevNodes => [...prevNodes, newNode]);
     setSelectedNode(newNode.id);
   };
+
 
   const screenToCanvas = useCallback((screenX, screenY) => {
     const { scale, translate } = transformRef.current;
@@ -714,141 +636,291 @@ const TangentChat = ({ initialConversation, selectedNodePosition }) => {
     }
   };
 
-  // Handle zoom with proper focus point
+
   const handleWheel = useCallback((e) => {
     e.preventDefault();
-    const { scale: currentScale, translate: currentTranslate } = transformRef.current;
 
+    const { scale: currentScale, translate: currentTranslate } = transformRef.current;
     const rect = canvasRef.current.getBoundingClientRect();
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
 
-    // Add zoom sensitivity
-    const delta = -e.deltaY * ZOOM_SENSITIVITY;
-    const zoom = Math.exp(delta);
+    // Check if it's a zoom gesture (CMD/CTRL pressed)
+    if (e.ctrlKey || e.metaKey) {
+      // Handle zooming
+      const delta = -e.deltaY * ZOOM_SENSITIVITY;
+      const zoom = Math.exp(delta);
 
-    // Limit scale between 0.1 and 5 with smoother transitions
-    const newScale = Math.min(Math.max(0.1, currentScale * zoom), 5);
+      // Limit scale between 0.1 and 5 with smoother transitions
+      const newScale = Math.min(Math.max(0.1, currentScale * zoom), 5);
 
-    const mouseBeforeZoom = screenToCanvas(mouseX, mouseY);
-    const scaleDiff = newScale - currentScale;
-    const newTranslate = {
-      x: currentTranslate.x - mouseBeforeZoom.x * scaleDiff,
-      y: currentTranslate.y - mouseBeforeZoom.y * scaleDiff
-    };
+      const mouseBeforeZoom = screenToCanvas(mouseX, mouseY);
+      const scaleDiff = newScale - currentScale;
 
-    setScale(newScale);
-    setTranslate(newTranslate);
+      const newTranslate = {
+        x: currentTranslate.x - mouseBeforeZoom.x * scaleDiff,
+        y: currentTranslate.y - mouseBeforeZoom.y * scaleDiff
+      };
+
+      setScale(newScale);
+      setTranslate(newTranslate);
+    } else {
+      // Handle panning (two-finger gesture or trackpad)
+      // Apply panning sensitivity for smoother movement
+      const dx = e.deltaX * PANNING_SENSITIVITY;
+      const dy = e.deltaY * PANNING_SENSITIVITY;
+
+      setTranslate(prev => ({
+        x: prev.x - dx,
+        y: prev.y - dy
+      }));
+    }
   }, [screenToCanvas]);
+
+  const calculateBranchPosition = (parentNode, messageIndex, existingNodes) => {
+    const BASE_SPACING_X = 300; // Horizontal space between branches
+    const BASE_SPACING_Y = 120; // Vertical space between sibling branches
+    const MESSAGE_HEIGHT = 120; // Height per message
+
+    // Calculate base position relative to parent message
+    const baseX = parentNode.x + BASE_SPACING_X;
+    const baseY = parentNode.y + (messageIndex * MESSAGE_HEIGHT);
+
+    // Get existing branches at this message index
+    const siblingBranches = existingNodes.filter(node =>
+      node.parentId === parentNode.id &&
+      node.parentMessageIndex === messageIndex
+    );
+
+    // Stack new branch below existing siblings
+    const verticalOffset = siblingBranches.length * BASE_SPACING_Y;
+
+    return {
+      x: baseX,
+      y: baseY + verticalOffset
+    };
+  };
 
   // Function to center the main node
   const centerCanvas = useCallback(() => {
     if (!canvasRef.current) return;
+
+    // Calculate expanded bounds including messages
+    const calculateExpandedBounds = (nodes, expandedNodes) => {
+      return nodes.reduce((bounds, node) => {
+        const nodeWidth = NODE_WIDTH;
+        let nodeHeight = NODE_HEADER_HEIGHT;
+
+        // Add height for expanded messages
+        if (expandedNodes.has(node.id) && node.messages) {
+          nodeHeight += node.messages.reduce((height, msg) => {
+            return height + (msg.content.length > 150 ? 160 : 120) + MESSAGE_PADDING;
+          }, 0);
+        }
+
+        return {
+          minX: Math.min(bounds.minX, node.x),
+          maxX: Math.max(bounds.maxX, node.x + nodeWidth),
+          minY: Math.min(bounds.minY, node.y),
+          maxY: Math.max(bounds.maxY, node.y + nodeHeight)
+        };
+      }, {
+        minX: Infinity,
+        maxX: -Infinity,
+        minY: Infinity,
+        maxY: -Infinity
+      });
+    };
 
     const viewport = {
       width: canvasRef.current.clientWidth,
       height: canvasRef.current.clientHeight
     };
 
-    const bounds = calculateNodesBounds(nodes);
-    if (!bounds) return;
+    // Calculate bounds including expanded messages
+    const bounds = calculateExpandedBounds(nodes, expandedNodes);
+    if (!bounds || bounds.minX === Infinity) return;
 
-    const newScale = calculateIdealScale(bounds, viewport);
-    const newTranslate = calculateCenteringTranslation(bounds, viewport, newScale);
+    // Add padding around the content
+    const PADDING = 100;
+    const contentWidth = bounds.maxX - bounds.minX + (PADDING * 2);
+    const contentHeight = bounds.maxY - bounds.minY + (PADDING * 2);
 
+    // Get chat container width
+    const chatContainerWidth = getChatContainerWidth();
+
+    // Calculate available canvas width (accounting for chat container)
+    const availableWidth = viewport.width - chatContainerWidth;
+
+    // Calculate ideal scale
+    const scaleX = (availableWidth * 0.9) / contentWidth;
+    const scaleY = (viewport.height * 0.9) / contentHeight;
+    const newScale = Math.min(Math.min(scaleX, scaleY), 1);
+
+    // Calculate center position
+    const centerX = bounds.minX + (contentWidth / 2);
+    const centerY = bounds.minY + (contentHeight / 2);
+
+    // Calculate translation to center the content
+    const newTranslate = {
+      x: (availableWidth / 2) - (centerX * newScale) + (PADDING * newScale),
+      y: (viewport.height / 2) - (centerY * newScale) + (PADDING * newScale)
+    };
+
+    // Update viewport
     setScale(newScale);
     setTranslate(newTranslate);
-  }, [nodes]);
+  }, [nodes, expandedNodes, getChatContainerWidth]);
 
   const organizeNodesIntoStack = useCallback(() => {
-    // Padding values to add space between threads
-    const THREAD_HORIZONTAL_PADDING = 100; // Extra horizontal space between levels
-    const THREAD_VERTICAL_PADDING = 50;    // Extra vertical space between nodes at the same level
+    // Spacing constants
+    const LEVEL_HORIZONTAL_SPACING = 500;
+    const MESSAGE_VERTICAL_SPACING = 120; // Base spacing per message
+    const BRANCH_VERTICAL_PADDING = 50;   // Extra padding between branch groups
+    const INITIAL_OFFSET_X = 200;
+    const INITIAL_OFFSET_Y = 100;
 
-    // Create a map to store each node's level (distance from root)
-    const nodeLevels = new Map();
-    const nodesByLevel = new Map();
-
-    // Find the root node (type: 'main')
+    // Find the root (main) node
     const rootNode = nodes.find(node => node.type === 'main');
     if (!rootNode) return;
 
-    // Calculate levels for each node using BFS
-    const queue = [{ node: rootNode, level: 0 }];
-    nodeLevels.set(rootNode.id, 0);
-
-    while (queue.length > 0) {
-      const { node: currentNode, level } = queue.shift();
-
-      // Initialize array for this level if it doesn't exist
-      if (!nodesByLevel.has(level)) {
-        nodesByLevel.set(level, []);
-      }
-      nodesByLevel.get(level).push(currentNode);
-
-      // Find all children of the current node
-      const children = nodes.filter(n => n.parentId === currentNode.id);
-      children.forEach(child => {
-        if (!nodeLevels.has(child.id)) {
-          nodeLevels.set(child.id, level + 1);
-          queue.push({ node: child, level: level + 1 });
+    // Group branches by their parent message index
+    const branchesByMessage = new Map();
+    nodes.forEach(node => {
+      if (node.type === 'branch' && node.parentId === rootNode.id) {
+        const messageIndex = node.parentMessageIndex || 0;
+        if (!branchesByMessage.has(messageIndex)) {
+          branchesByMessage.set(messageIndex, []);
         }
-      });
-    }
-
-    // Update node positions based on their levels
-    const newNodes = nodes.map(node => {
-      const level = nodeLevels.get(node.id);
-      const nodesAtLevel = nodesByLevel.get(level) || [];
-      const indexAtLevel = nodesAtLevel.findIndex(n => n.id === node.id);
-
-      return {
-        ...node,
-        x: STACK_START_X + (level * (STACK_SPACING_X + THREAD_HORIZONTAL_PADDING)), // Add horizontal padding
-        y: STACK_START_Y + (indexAtLevel * (STACK_SPACING_Y + THREAD_VERTICAL_PADDING)) // Add vertical padding
-      };
+        branchesByMessage.get(messageIndex).push(node);
+      }
     });
 
-    // Animate to new positions
+    // Calculate vertical position based on message index
+    const getMessageY = (messageIndex) => {
+      return INITIAL_OFFSET_Y + (messageIndex * MESSAGE_VERTICAL_SPACING);
+    };
+
+    // Process nodes recursively to maintain hierarchy
+    const processNode = (node, level, branchGroup = null) => {
+      let x = INITIAL_OFFSET_X + (level * LEVEL_HORIZONTAL_SPACING);
+      let y;
+
+      if (node.type === 'main') {
+        // Position main thread
+        y = INITIAL_OFFSET_Y;
+      } else {
+        // Position branch based on parent message
+        const messageY = getMessageY(node.parentMessageIndex);
+        const branchesAtMessage = branchesByMessage.get(node.parentMessageIndex) || [];
+        const branchIndex = branchesAtMessage.findIndex(b => b.id === node.id);
+
+        // Add vertical offset based on branch position within message group
+        y = messageY + (branchIndex * BRANCH_VERTICAL_PADDING);
+      }
+
+      // Update node position
+      const updatedNode = {
+        ...node,
+        x,
+        y
+      };
+
+      // Process child branches
+      const childBranches = nodes.filter(n => n.parentId === node.id);
+      const processedChildren = childBranches.map((child, index) => {
+        return processNode(child, level + 1, {
+          parentY: y,
+          index,
+          total: childBranches.length
+        });
+      });
+
+      return {
+        node: updatedNode,
+        children: processedChildren
+      };
+    };
+
+    // Process all nodes starting from root
+    const processedStructure = processNode(rootNode, 0);
+
+    // Flatten the processed structure back into an array
+    const flattenStructure = (structure) => {
+      const nodes = [structure.node];
+      structure.children.forEach(child => {
+        nodes.push(...flattenStructure(child));
+      });
+      return nodes;
+    };
+
+    const newNodes = flattenStructure(processedStructure);
+
+    // Update nodes
     setNodes(newNodes);
 
-    // Center the view on the organized structure
-    const canvasRect = canvasRef.current?.getBoundingClientRect();
-    if (canvasRect) {
-      const centerX = canvasRect.width / 2;
-      const centerY = canvasRect.height / 2;
+    // Center view on the organized structure
+    if (canvasRef.current) {
+      const canvasRect = canvasRef.current.getBoundingClientRect();
 
-      // Calculate the center of the node structure
-      const avgX = newNodes.reduce((sum, node) => sum + node.x, 0) / newNodes.length;
-      const avgY = newNodes.reduce((sum, node) => sum + node.y, 0) / newNodes.length;
+      // Calculate bounds
+      const bounds = {
+        minX: Math.min(...newNodes.map(n => n.x)),
+        maxX: Math.max(...newNodes.map(n => n.x)),
+        minY: Math.min(...newNodes.map(n => n.y)),
+        maxY: Math.max(...newNodes.map(n => n.y))
+      };
 
-      // Set translation to center the structure
+      // Calculate structure dimensions and center
+      const structureWidth = bounds.maxX - bounds.minX + 800; // Add padding
+      const structureHeight = bounds.maxY - bounds.minY + 400; // Add padding
+      const structureCenterX = (bounds.minX + bounds.maxX) / 2;
+      const structureCenterY = (bounds.minY + bounds.maxY) / 2;
+
+      // Calculate ideal scale
+      const scaleX = (canvasRect.width * 0.8) / structureWidth;
+      const scaleY = (canvasRect.height * 0.8) / structureHeight;
+      const newScale = Math.min(Math.min(scaleX, scaleY), 1);
+
+      // Update viewport
+      setScale(newScale);
       setTranslate({
-        x: centerX - (avgX * scale),
-        y: centerY - (avgY * scale)
+        x: (canvasRect.width / 2) - (structureCenterX * newScale),
+        y: (canvasRect.height / 2) - (structureCenterY * newScale)
       });
     }
-  }, [nodes, scale]);
+  }, [nodes]);
+
+  const NODE_WIDTH = 400;
+  const NODE_HEADER_HEIGHT = 80;
+  const MESSAGE_PADDING = 16;
+
 
   const getConnectionPoints = (sourceNode, targetNode, expandedNodes) => {
+
     const isSourceExpanded = expandedNodes.has(sourceNode.id);
     const messageIndex = targetNode.parentMessageIndex || 0;
-    const messageOffset = isSourceExpanded ? calculateMessageOffset(sourceNode.messages, messageIndex) : 50;
+
+    // Calculate vertical offset based on message position
+    const messageOffset = isSourceExpanded
+      ? NODE_HEADER_HEIGHT + (messageIndex * (120 + MESSAGE_PADDING))
+      : NODE_HEADER_HEIGHT;
 
     // Determine if target is to the left or right of source
     const isTargetOnLeft = targetNode.x < sourceNode.x;
 
-    // Source coordinates
-    const sourceX = isTargetOnLeft ?
-      sourceNode.x : // Connect from left edge if target is on left
-      sourceNode.x + 256; // Connect from right edge if target is on right
-    const sourceY = sourceNode.y + messageOffset;
+    // Calculate horizontal connection points with proper node width
+    const sourceX = isTargetOnLeft
+      ? sourceNode.x // Left edge of source
+      : sourceNode.x + NODE_WIDTH; // Right edge of source
 
-    // Target coordinates
-    const targetX = isTargetOnLeft ?
-      targetNode.x + 256 : // Connect to right edge if target is on left
-      targetNode.x; // Connect to left edge if target is on right
-    const targetY = targetNode.y + 50; // Connect to top of target node
+    const targetX = isTargetOnLeft
+      ? targetNode.x + NODE_WIDTH // Right edge of target
+      : targetNode.x; // Left edge of target
+
+    // Calculate vertical positions with header height consideration
+    const sourceY = sourceNode.y + messageOffset;
+    const targetY = targetNode.y + (NODE_HEADER_HEIGHT / 2); // Center of target node header
 
     return {
       x1: sourceX,
@@ -882,6 +954,7 @@ const TangentChat = ({ initialConversation, selectedNodePosition }) => {
     });
   };
 
+
   // Calculate the ideal scale to fit content
   const calculateIdealScale = (bounds, viewport, padding = 100) => {
     if (!bounds) return 1;
@@ -889,8 +962,11 @@ const TangentChat = ({ initialConversation, selectedNodePosition }) => {
     const contentWidth = bounds.maxX - bounds.minX + padding * 2;
     const contentHeight = bounds.maxY - bounds.minY + padding * 2;
 
-    // Calculate scale based on both dimensions
-    const scaleX = (viewport.width - 384) / contentWidth; // Subtract sidebar width
+    // Get the current chat container width
+    const chatContainerWidth = getChatContainerWidth(); // We'll create this function
+
+    // Calculate scale based on both dimensions, accounting for chat container
+    const scaleX = (viewport.width - chatContainerWidth) / contentWidth;
     const scaleY = viewport.height / contentHeight;
 
     // Use the smaller scale to ensure content fits
@@ -904,10 +980,17 @@ const TangentChat = ({ initialConversation, selectedNodePosition }) => {
     const contentWidth = (bounds.maxX - bounds.minX + padding * 2) * scale;
     const contentHeight = (bounds.maxY - bounds.minY + padding * 2) * scale;
 
-    // Center horizontally, accounting for sidebar
-    const x = ((viewport.width - 384) - contentWidth) / 2 - bounds.minX * scale + padding * scale;
+    // Get the current chat container width
+    const chatContainerWidth = getChatContainerWidth();
+
+    // Calculate the available canvas width
+    const availableWidth = viewport.width - chatContainerWidth;
+
+    // Center horizontally in the available space, accounting for chat container
+    const x = (availableWidth / 2) - (bounds.minX * scale) - (contentWidth / 2) + padding * scale;
+
     // Center vertically
-    const y = (viewport.height - contentHeight) / 2 - bounds.minY * scale + padding * scale;
+    const y = (viewport.height / 2) - (bounds.minY * scale) - (contentHeight / 2) + padding * scale;
 
     return { x, y };
   };
@@ -958,36 +1041,69 @@ const TangentChat = ({ initialConversation, selectedNodePosition }) => {
   };
 
   // Helper function to calculate message offset (unchanged but included for completeness)
-  const calculateMessageOffset = (messages, index) => {
-    if (!messages || index < 0) return 50;
-    return messages.slice(0, index + 1).reduce((acc, msg) => {
-      const contentHeight = msg.content.length > 150 ? 160 : 120;
-      return acc + contentHeight;
-    }, 100);
+
+  const calculateMessageOffset = (messageIndex) => {
+    const BASE_OFFSET = 80; // Header height
+    const MESSAGE_HEIGHT = 120;
+    const MESSAGE_PADDING = 16;
+    return BASE_OFFSET + (messageIndex * (MESSAGE_HEIGHT + MESSAGE_PADDING));
   };
 
   const createBranch = (parentNode, template, nodes, messageIndex, position = null) => {
+    const NODE_SPACING = 400; // Horizontal spacing between nodes
     const newId = nodes.length > 0 ? Math.max(...nodes.map(n => n.id)) + 1 : 1;
-
-    // Get the full context for the branch
     const contextMessages = parentNode.messages.slice(0, messageIndex + 1);
+
+    // Calculate optimal position if not provided
+    const defaultPosition = {
+      x: position?.x ?? parentNode.x + NODE_SPACING,
+      y: position?.y ?? parentNode.y + calculateMessageOffset(messageIndex)
+    };
+
+    // Adjust position to prevent overlap with existing nodes
+    const adjustedPosition = adjustNodePosition(defaultPosition, nodes, NODE_SPACING);
 
     return {
       id: newId,
-      // Visual messages only show the branched message
       messages: [parentNode.messages[messageIndex]],
-      x: position?.x ?? parentNode.x + 300,
-      y: position?.y ?? (parentNode.y + calculateMessageOffset(parentNode.messages, messageIndex) - 60),
+      x: adjustedPosition.x,
+      y: adjustedPosition.y,
       type: 'branch',
       title: template.title || `Branch ${newId}`,
       parentId: parentNode.id,
       systemPrompt: template.systemPrompt,
       collapsed: true,
       parentMessageIndex: messageIndex,
-      // Keep full context in a separate property
       contextMessages: contextMessages
     };
   };
+
+  const adjustNodePosition = (position, nodes, spacing) => {
+    const OVERLAP_THRESHOLD = spacing / 2;
+    let adjustedPosition = { ...position };
+    let hasOverlap;
+
+    do {
+      hasOverlap = false;
+      for (const node of nodes) {
+        const distance = Math.sqrt(
+          Math.pow(node.x - adjustedPosition.x, 2) +
+          Math.pow(node.y - adjustedPosition.y, 2)
+        );
+
+        if (distance < OVERLAP_THRESHOLD) {
+          hasOverlap = true;
+          // Shift position diagonally
+          adjustedPosition.x += spacing / 2;
+          adjustedPosition.y += spacing / 4;
+          break;
+        }
+      }
+    } while (hasOverlap);
+
+    return adjustedPosition;
+  };
+
 
   const getConnectedBranches = (nodeId, messageIndex) => {
     const currentNode = nodes.find(n => n.id === nodeId);
@@ -1079,6 +1195,28 @@ const TangentChat = ({ initialConversation, selectedNodePosition }) => {
     }
   }, [nodes, selectedNode, focusedMessageIndex, focusOnMessage, getConnectedBranches, getSiblingBranches]);
 
+
+  // Add this useEffect for the keyboard listener
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Only show quick input if user is not already typing somewhere
+      const isTyping = document.activeElement.tagName === 'INPUT' ||
+        document.activeElement.tagName === 'TEXTAREA' ||
+        document.activeElement.closest('.chat-interface');
+
+      if (isTyping) return;
+
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        setQuickInputPosition({ x: e.clientX, y: e.clientY });
+        setShowQuickInput(true);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (document.activeElement.tagName === 'INPUT' ||
@@ -1151,6 +1289,7 @@ const TangentChat = ({ initialConversation, selectedNodePosition }) => {
     return targetNode.x < sourceNode.x ? 'left' : 'right';
   };
 
+
   useEffect(() => {
     const handleKeyDown = (e) => {
       // Check if the active element is a text input or textarea
@@ -1190,6 +1329,7 @@ const TangentChat = ({ initialConversation, selectedNodePosition }) => {
       }
     };
 
+
     const handleKeyUp = (e) => {
       // Only handle space key for pan tool when not typing
       const isTyping = document.activeElement.tagName === 'INPUT' ||
@@ -1207,16 +1347,15 @@ const TangentChat = ({ initialConversation, selectedNodePosition }) => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [centerCanvas, organizeNodesIntoStack, activeTool]);
+  }, [centerCanvas, organizeNodesIntoStack, activeTool, isModelDropdownOpen]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    // Attach the wheel event listener with passive: false to allow preventDefault
+    // Add the wheel event listener with passive: false to allow preventDefault
     canvas.addEventListener('wheel', handleWheel, { passive: false });
 
-    // Cleanup the event listener on unmount
     return () => {
       canvas.removeEventListener('wheel', handleWheel, { passive: false });
     };
@@ -1267,9 +1406,10 @@ const TangentChat = ({ initialConversation, selectedNodePosition }) => {
     };
   }, [dragState, isPanning, handleDrag, handleDragEnd, lastMousePos]);
 
+
   return (
     <div className="relative flex h-full bg-background overflow-hidden">
-      {/* Canvas Area */}
+      {/* Canvas Area with Grid and Interactions */}
       <div
         ref={canvasRef}
         className={cn(
@@ -1279,15 +1419,20 @@ const TangentChat = ({ initialConversation, selectedNodePosition }) => {
         onMouseDown={handleCanvasMouseDown}
         style={{ touchAction: 'none' }}
       >
-        {/* Grid Background */}
+        {/* Background Grid */}
         <GridBackground
           translate={translate}
           scale={scale}
           className="stroke-border dark:stroke-border"
         />
 
-        {/* Canvas Toolbar */}
-        <div className="absolute top-4 z-3">
+        {/* Toolbar - Fixed with Dynamic Positioning */}
+        <div
+          className="fixed bottom-20 z-10"
+          style={{
+            left: isPanelCollapsed ? '1rem' : 'calc(20vw + 1rem)'
+          }}
+        >
           <CanvasToolbar
             activeTool={activeTool}
             onToolSelect={handleToolSelect}
@@ -1296,18 +1441,39 @@ const TangentChat = ({ initialConversation, selectedNodePosition }) => {
             selectedModel={selectedModel}
             models={models}
             onModelSelect={setSelectedModel}
+            isModelDropdownOpen={isModelDropdownOpen}
+            setIsModelDropdownOpen={setIsModelDropdownOpen}
+            modelDropdownRef={modelDropdownRef}
           />
         </div>
 
-        {/* Nodes and Connections */}
+        {/* Bottom Navigation Bar - Fixed with Dynamic Positioning */}
         <div
-          className="absolute inset-0"
+          className="fixed bottom-1 mx-2 z-10 flex gap-2 right: 10px width: -webkit-fill-available justify-content: space-around"
+          style={{
+            left: isPanelCollapsed ? '1rem' : 'calc(20vw + 1rem)'
+          }}
+        >
+          <MessageNavigator
+            currentNode={nodes.find(n => n.id === selectedNode)}
+            currentIndex={focusedMessageIndex}
+            totalMessages={nodes.find(n => n.id === selectedNode)?.messages.length || 0}
+            onNavigate={handleNavigation}
+            branches={getConnectedBranches(selectedNode, focusedMessageIndex)}
+            isMessageExpanded={expandedMessages.has(focusedMessageIndex)}
+            onToggleExpand={handleToggleMessageExpand}
+          />
+        </div>
+
+        {/* Canvas Content - Nodes and Connections */}
+        <div ref={contentRef}
+          className="absolute inset-0 z-0"
           style={{
             transform: `translate(${translate.x}px, ${translate.y}px) scale(${scale})`,
             transformOrigin: '0 0',
           }}
         >
-          {/* SVG for connections */}
+          {/* SVG Layer for Connections */}
           <svg
             className="absolute"
             style={{
@@ -1319,10 +1485,8 @@ const TangentChat = ({ initialConversation, selectedNodePosition }) => {
           >
             {nodes.map((node) => {
               if (!node.parentId) return null;
-
               const parent = nodes.find(n => n.id === node.parentId);
               if (!parent) return null;
-
               return (
                 <Connection
                   key={`connection-${parent.id}-${node.id}`}
@@ -1334,71 +1498,83 @@ const TangentChat = ({ initialConversation, selectedNodePosition }) => {
             })}
           </svg>
 
-          {/* Node components */}
-          {nodes.map((node) => {
-            const nodeKey = `node-${node.id}-${node.branchId || '0'}`;
+          {/* Node Components */}
+          {nodes.map((node) => (
+            <BranchNode
+              key={`node-${node.id}-${node.branchId || '0'}`}
+              node={node}
+              nodes={nodes}
+              isExpanded={expandedNodes.has(node.id)}
+              isSelected={selectedNode === node.id}
+              onToggleExpand={() => handleToggleExpand(node.id)}
+              onSelect={() => setSelectedNode(node.id)}
+              onDelete={() => handleDeleteNode(node.id)}
+              onDragStart={handleDragStart}
+              onCreateBranch={handleCreateBranch}
+              selectedModel={selectedModel}
+              currentMessageIndex={node.id === selectedNode ? focusedMessageIndex : null}
+              branchId={node.branchId}
+              expandedMessages={expandedMessages}
+              onToggleMessageExpand={handleToggleMessageExpand}
+              onUpdateTitle={handleUpdateTitle}
+              style={{
+                position: 'absolute',
+                left: `${node.x}px`,
+                top: `${node.y}px`,
+                width: '400px',
+                zIndex: selectedNode === node.id ? 10 : 1
+              }}
+            />
+          ))}
 
-            return (
-              <BranchNode
-                key={nodeKey}
-                node={node}
-                nodes={nodes}
-                isExpanded={expandedNodes.has(node.id)}
-                isSelected={selectedNode === node.id}
-                onToggleExpand={() => handleToggleExpand(node.id)}
-                onSelect={() => setSelectedNode(node.id)}
-                onDelete={() => handleDeleteNode(node.id)}
-                onDragStart={handleDragStart}
-                onCreateBranch={handleCreateBranch}
-                selectedModel={selectedModel}
-                currentMessageIndex={node.id === selectedNode ? focusedMessageIndex : null}
-                branchId={node.branchId}
-                style={{
-                  position: 'absolute',
-                  left: `${node.x}px`,
-                  top: `${node.y}px`,
-                  width: '256px',
-                  zIndex: selectedNode === node.id ? 10 : 1
-                }}
-              />
-            );
-          })}
         </div>
       </div>
 
       {/* Chat Sidebar */}
-      <div className="absolute right-0 top-40 bottom-0 w-96 bg-background border-l border-border">
+      <ChatContainer
+        size={chatContainerSize}
+        onSizeChange={setChatContainerSize}
+      >
+        <ModelStatus
+          selectedModel={selectedModel}
+          isLoading={isLoading}
+          temperature={temperature}
+          onTemperatureChange={setTemperature}
+          models={models}
+          onModelSelect={setSelectedModel}
+          containerWidth={containerWidth}
+        />
         {selectedNode && (
-          <>
-            <div className="flex gap-2 p-2 border border-border">
-              <MessageNavigator
-                currentNode={nodes.find(n => n.id === selectedNode)}
-                currentIndex={focusedMessageIndex}
-                totalMessages={nodes.find(n => n.id === selectedNode)?.messages.length || 0}
-                onNavigate={handleNavigation}
-                branches={getConnectedBranches(selectedNode, focusedMessageIndex)}
-              />
-              <ModelStatus
-                selectedModel={selectedModel}
-                isLoading={isLoading}
-                temperature={0.7}
-              />
-            </div>
-            <div className="overflow-hidden">
-              <ChatInterface
-                messages={getFullMessageHistory(selectedNode)}
-                input={inputValue}
-                isLoading={isLoading}
-                onInputChange={handleInputChange}
-                onSend={handleSendMessage}
-                streamingMessage={streamingMessage}
-                continuationCount={continuationCount}
-                activeNode={nodes.find(n => n.id === selectedNode)}
-              />
-            </div>
-          </>
+          <ChatInterface
+            messages={getFullMessageHistory(selectedNode)}
+            input={inputValue}
+            isLoading={isLoading}
+            onInputChange={handleInputChange}
+            onSend={handleSendMessage}
+            streamingMessage={streamingMessage}
+            continuationCount={continuationCount}
+            activeNode={nodes.find(n => n.id === selectedNode)}
+            expandedMessages={expandedMessages} // Add this prop
+            onToggleMessageExpand={handleToggleMessageExpand} // Add this prop
+          />
         )}
-      </div>
+      </ChatContainer>
+
+      <FloatingInput
+        show={showQuickInput}
+        onClose={() => setShowQuickInput(false)}
+        onSend={handleSendMessage}
+        isLoading={isLoading}
+        position={quickInputPosition}
+        inputValue={inputValue}
+        onInputChange={handleInputChange}
+        style={{
+          position: contentHeight > window.innerHeight ? 'fixed' : 'absolute',
+          bottom: 20,
+          left: '50%',
+          transform: 'translateX(-50%)'
+        }}
+      />
     </div>
   );
 };

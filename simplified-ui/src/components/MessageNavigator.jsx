@@ -1,20 +1,36 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { cn } from '../components/lib/utils';
+import { Expand, Minimize } from 'lucide-react';
 
 export const MessageNavigator = ({
   currentNode,
   currentIndex,
   totalMessages,
   onNavigate,
-  branches
+  branches,
+  isMessageExpanded,
+  onToggleExpand
 }) => {
-  if (!currentNode) {
-    return (
-      <div className="fixed bottom-2 left-2 p-1.5 rounded-md text-[10px] bg-muted text-muted-foreground">
-        No current node selected
-      </div>
-    );
-  }
+  // Handle keyboard shortcuts for expansion
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Only handle if not typing in an input
+      if (document.activeElement.tagName === 'INPUT' || 
+          document.activeElement.tagName === 'TEXTAREA' ||
+          !currentNode) return;
+
+      // Handle 'e' key for expansion toggle
+      if (e.key.toLowerCase() === 'e') {
+        e.preventDefault(); // Prevent any default 'e' key behavior
+        onToggleExpand(currentIndex);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentIndex, onToggleExpand, currentNode]);
+
+  if (!currentNode) return null;
 
   const canGoUp = currentIndex > 0;
   const canGoDown = currentIndex < totalMessages - 1;
@@ -23,12 +39,12 @@ export const MessageNavigator = ({
 
   return (
     <div className={cn(
-      "fixed bottom-2 left-2 p-1.5 rounded-md text-[10px]",
+      "relative bottom-2 right-2 rounded-md text-[10px]",
       "bg-background/80 backdrop-blur-sm supports-[backdrop-filter]:bg-background/60",
       "shadow-sm border border-border"
     )}>
       <div className="flex items-center gap-1">
-        {/* Left navigation */}
+        {/* Navigation buttons remain the same */}
         <div className="relative">
           <button 
             onClick={() => onNavigate('left')}
@@ -45,7 +61,6 @@ export const MessageNavigator = ({
           )}
         </div>
         
-        {/* Message navigation */}
         <div className="flex flex-col gap-0.5">
           <button 
             onClick={() => onNavigate('up')}
@@ -65,7 +80,6 @@ export const MessageNavigator = ({
           )}>S</button>
         </div>
 
-        {/* Right navigation */}
         <div className="relative">
           <button 
             onClick={() => onNavigate('right')}
@@ -82,6 +96,32 @@ export const MessageNavigator = ({
           )}
         </div>
 
+        {/* Updated Expand/Collapse button */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleExpand(currentIndex);
+          }}
+          className={cn(
+            "p-1 rounded transition-colors",
+            "bg-primary/20 text-primary hover:bg-primary/30",
+            "flex items-center gap-1"
+          )}
+          title="Press 'E' to toggle expansion"
+        >
+          {isMessageExpanded ? (
+            <>
+              <Minimize className="w-3 h-3" />
+              <span>E</span>
+            </>
+          ) : (
+            <>
+              <Expand className="w-3 h-3" />
+              <span>E</span>
+            </>
+          )}
+        </button>
+
         <span className="text-muted-foreground px-1">
           {currentIndex + 1}/{totalMessages}
         </span>
@@ -95,3 +135,5 @@ export const MessageNavigator = ({
     </div>
   );
 };
+
+export default MessageNavigator;

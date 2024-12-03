@@ -265,7 +265,7 @@ const ExploreTab = () => {
     return (
         <div className="relative h-full flex flex-col items-center justify-center p-8">
             {!isChatting ? (
-                <div className="max-w-2xl w-full space-y-8">
+                <div className="max-w h-full w-full space-y-20">
                     {/* Audio Visualization */}
                     <AnimatePresence>
                         {isListening && (
@@ -273,7 +273,7 @@ const ExploreTab = () => {
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 exit={{ opacity: 0, y: -20 }}
-                                className="w-full"
+                                className="w-full h-full"
                             >
                                 <AudioVisualizer
                                     isRecording={isListening}
@@ -288,11 +288,11 @@ const ExploreTab = () => {
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="space-y-6 text-center"
+                        className="space-y-20 text-center"
                     >
                         {!transcript && !processing && (
                             <motion.h2
-                                className="text-3xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-primary to-primary/60"
+                                className="text-xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-primary to-primary/60"
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}
                                 transition={{ delay: 0.2 }}

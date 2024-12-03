@@ -7,24 +7,137 @@ import { Progress } from './index';
 import { Input } from './ui/input';
 import { Switch } from './index';
 import { Label } from './index';
-import { 
-  ArrowRight, 
-  Search, 
-  SlidersHorizontal, 
-  TrendingUp, 
-  Users, 
+import {
+  ArrowRight,
+  Search,
+  SlidersHorizontal,
+  TrendingUp,
+  Users,
   Target,
-  GitBranch
+  GitBranch,
+  ChevronDown,
+  MessageSquare
 } from 'lucide-react';
 import { cn } from './lib/utils';
 
+// Separated TopicCard component
+const TopicCard = ({
+  cluster,
+  topicData,
+  isActive,
+  topicBranchCounts,
+  conversationsByCluster,
+  getColor,
+  handleTopicSelect,
+  onConversationSelect
+}) => {
+  const [showConversations, setShowConversations] = useState(false);
+  const branchInfo = topicBranchCounts[cluster];
+  const hasBranches = branchInfo?.conversationsWithBranches > 0;
+  const totalBranches = branchInfo?.totalBranches || 0;
+  const conversations = conversationsByCluster[cluster] || [];
+
+  return (
+    <div className={cn(
+      "group rounded-lg transition-all duration-200",
+      isActive && "bg-accent shadow-sm"
+    )}>
+      <div className="p-4 hover:bg-accent/50">
+        <div className="flex items-start gap-4">
+          <div
+            className={cn(
+              "h-3 w-3 rounded-full mt-1.5 flex-shrink-0",
+              "ring-2 ring-offset-2 ring-offset-background transition-all",
+              isActive ? "ring-primary" : "ring-transparent"
+            )}
+            style={{ backgroundColor: getColor(parseInt(cluster)) }}
+          />
+          <div className="flex-1 space-y-2">
+            <div className="flex items-center justify-between">
+              <button
+                className="font-medium tracking-tight text-left flex-1 hover:text-primary"
+                onClick={() => handleTopicSelect(cluster)}
+              >
+                {topicData.topic}
+              </button>
+              
+              {isActive && conversations.length > 0 && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowConversations(!showConversations);
+                  }}
+                  className="flex items-center gap-2 text-muted-foreground hover:text-foreground p-1 rounded-md"
+                >
+                  <MessageSquare className="h-4 w-4" />
+                  <span className="text-xs">{conversations.length}</span>
+                  <ChevronDown className={cn(
+                    "h-4 w-4 transition-transform duration-200",
+                    showConversations && "transform rotate-180"
+                  )} />
+                </button>
+              )}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1">
+                <Users className="h-3 w-3" />
+                {topicData.size}
+              </span>
+              <span className="flex items-center gap-1">
+                <TrendingUp className="h-3 w-3" />
+                {(topicData.coherence * 100).toFixed(0)}%
+              </span>
+              {hasBranches && (
+                <Badge variant="secondary" className="flex items-center gap-1">
+                  <GitBranch className="h-3 w-3" />
+                  {totalBranches}
+                </Badge>
+              )}
+            </div>
+
+            <Progress
+              value={topicData.coherence * 100}
+              className={cn(
+                "h-1 transition-all duration-200",
+                isActive && "bg-primary/20"
+              )}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Collapsible conversation list */}
+      {isActive && showConversations && (
+        <div className="w-[300px] px-4 pb-4">
+          <div className="pl-7 space-y-2">
+            {conversations.map((chat, index) => (
+              <Button
+                key={index}
+                variant="ghost"
+                className="w-full justify-start gap-2 h-auto py-2 text-sm font-normal"
+                onClick={() => onConversationSelect(chat)}
+              >
+                <MessageSquare className="h-4 w-4 shrink-0" />
+                <span className="truncate text-left">{chat.title}</span>
+              </Button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Main TopicsPanel component
 const TopicsPanel = ({
   data,
   sortBy,
   setSortBy,
   selectedCluster,
   handleTopicSelect,
-  getColor
+  getColor,
+  onConversationSelect
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
@@ -38,6 +151,20 @@ const TopicsPanel = ({
     { id: 'branches', icon: <GitBranch className="h-4 w-4" />, label: 'Branches' }
   ];
 
+  // Group conversations by cluster
+  const conversationsByCluster = useMemo(() => {
+    if (!data?.chartData?.[0]?.data) return {};
+
+    return data.chartData[0].data.reduce((acc, chat) => {
+      const clusterId = chat.cluster.toString();
+      if (!acc[clusterId]) {
+        acc[clusterId] = [];
+      }
+      acc[clusterId].push(chat);
+      return acc;
+    }, {});
+  }, [data]);
+
   const topicBranchCounts = useMemo(() => {
     if (!data?.chartData?.[0]?.data) return {};
 
@@ -45,7 +172,7 @@ const TopicsPanel = ({
     data.chartData[0].data.forEach(chat => {
       const clusterId = chat.cluster.toString();
       const baseTitle = chat.title.replace(/ \(Branch \d+\)$/, '');
-      
+
       if (!counts[clusterId]) {
         counts[clusterId] = {
           branchMap: new Map(),
@@ -53,7 +180,7 @@ const TopicsPanel = ({
           conversationsWithBranches: 0
         };
       }
-      
+
       const branchMap = counts[clusterId].branchMap;
       if (!branchMap.has(baseTitle)) {
         branchMap.set(baseTitle, 1);
@@ -99,72 +226,8 @@ const TopicsPanel = ({
       });
   }, [data, searchQuery, sortBy, coherenceThreshold, showOnlyMultiBranch, topicBranchCounts]);
 
-  const TopicCard = ({ cluster, topicData, isActive }) => {
-    const branchInfo = topicBranchCounts[cluster];
-    const hasBranches = branchInfo?.conversationsWithBranches > 0;
-    const totalBranches = branchInfo?.totalBranches || 0;
-
-    return (
-      <div
-        className={cn(
-          "group p-4 rounded-lg transition-all duration-200",
-          "hover:bg-accent/50 cursor-pointer",
-          isActive && "bg-accent shadow-sm"
-        )}
-        onClick={() => handleTopicSelect(cluster)}
-      >
-        <div className="flex items-start gap-4">
-          <div
-            className={cn(
-              "h-3 w-3 rounded-full mt-1.5 flex-shrink-0",
-              "ring-2 ring-offset-2 ring-offset-background transition-all",
-              isActive ? "ring-primary" : "ring-transparent"
-            )}
-            style={{ backgroundColor: getColor(parseInt(cluster)) }}
-          />
-          <div className="flex-1 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="font-medium tracking-tight">{topicData.topic}</span>
-              <ArrowRight
-                className={cn(
-                  "h-4 w-4 transition-all duration-200",
-                  "opacity-0 group-hover:opacity-100 group-hover:translate-x-1"
-                )}
-              />
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-              <span className="flex items-center gap-1">
-                <Users className="h-3 w-3" />
-                {topicData.size}
-              </span>
-              <span className="flex items-center gap-1">
-                <TrendingUp className="h-3 w-3" />
-                {(topicData.coherence * 100).toFixed(0)}%
-              </span>
-              {hasBranches && (
-                <Badge variant="secondary" className="flex items-center gap-1">
-                  <GitBranch className="h-3 w-3" />
-                  {totalBranches}
-                </Badge>
-              )}
-            </div>
-
-            <Progress
-              value={topicData.coherence * 100}
-              className={cn(
-                "h-1 transition-all duration-200",
-                isActive && "bg-primary/20"
-              )}
-            />
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   return (
-    <Card className="h-[700px] w-[320px] flex flex-col">
+    <Card className="h-[700px] h-[90vh] flex flex-col">
       <CardHeader className="border-b space-y-4 pb-4 flex-shrink-0">
         <div className="flex items-center justify-between">
           <CardTitle>Topics Overview</CardTitle>
@@ -246,7 +309,6 @@ const TopicsPanel = ({
           )}
         </div>
       </CardHeader>
-
       <ScrollArea className="flex-1">
         <div className="p-2 space-y-1">
           {filteredAndSortedTopics.length > 0 ? (
@@ -256,6 +318,11 @@ const TopicsPanel = ({
                 cluster={cluster}
                 topicData={topicData}
                 isActive={parseInt(cluster) === selectedCluster}
+                topicBranchCounts={topicBranchCounts}
+                conversationsByCluster={conversationsByCluster}
+                getColor={getColor}
+                handleTopicSelect={handleTopicSelect}
+                onConversationSelect={onConversationSelect}
               />
             ))
           ) : (

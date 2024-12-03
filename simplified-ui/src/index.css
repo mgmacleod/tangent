@@ -17,7 +17,7 @@
     --primary: 222.2 47.4% 11.2%;
     --primary-foreground: 210 40% 98%;
 
-    --secondary: 210 40% 96.1%;
+    --secondary: #c653ff;
     --secondary-foreground: 222.2 47.4% 11.2%;
 
     --muted: 210 40% 96.1%;
@@ -146,9 +146,9 @@
     hsl(228 30% 15%)
   );
   border: 1px solid hsl(195 50% 40% / 0.3);
-  box-shadow:
+  /* box-shadow:
     0 0 0 1px hsl(195 96% 65% / 0.1),
-    0 4px 20px hsl(228 30% 5% / 0.5);
+    0 4px 20px hsl(228 30% 5% / 0.5); */
 }
 
 /* Runic button effects */
@@ -290,9 +290,9 @@
     hsl(165 60% 12%)
   );
   border: 1px solid hsl(150 50% 30% / 0.3);
-  box-shadow:
+  /* box-shadow:
     0 0 0 1px hsl(150 100% 45% / 0.1),
-    0 4px 20px hsl(165 60% 5% / 0.5);
+    0 4px 20px hsl(165 60% 5% / 0.5); */
   animation: toxicTrail 4s infinite;
 }
 

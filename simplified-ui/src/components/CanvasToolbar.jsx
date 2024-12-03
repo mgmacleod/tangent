@@ -17,11 +17,11 @@ const ToolButton = ({ tool, isActive, onClick }) => {
   const Icon = tool.icon;
   
   return (
-    <div className="relative">
+    <div className="relative group">
       <button
         onClick={() => onClick(tool.id)}
         className={cn(
-          "p-2 rounded-lg transition-all duration-200 relative group",
+          "p-2 rounded-lg transition-all duration-200",
           "hover:bg-secondary",
           isActive ? "bg-primary/20 text-primary" : "text-muted-foreground",
           "light:hover:bg-gray-100 dark:hover:bg-gray-800",
@@ -31,34 +31,41 @@ const ToolButton = ({ tool, isActive, onClick }) => {
         title={tool.label}
       >
         <Icon className="w-5 h-5" />
-        <span className={cn(
-          "absolute hidden group-hover:block",
-          "left-14 top-1/2 -translate-y-1/2", // Position to the right of the button
-          "px-2 py-1 text-xs rounded whitespace-nowrap",
-          "bg-popover text-popover-foreground",
-          "shadow-md border border-border",
-          "z-50"
-        )}>
-          {tool.label}
-        </span>
       </button>
+      <span className={cn(
+        "absolute hidden group-hover:block",
+        "left-14 top-1/2 -translate-y-1/2",
+        "px-2 py-1 text-xs rounded whitespace-nowrap",
+        "bg-popover text-popover-foreground",
+        "shadow-md border border-border",
+        "z-50"
+      )}>
+        {tool.label}
+      </span>
     </div>
   );
 };
 
-
-function CanvasToolbar({ 
-  activeTool, 
-  onToolSelect, 
-  theme, 
+const CanvasToolbar = ({
+  activeTool,
+  onToolSelect,
+  theme,
   onThemeChange,
   selectedModel,
-  models = [],
-  onModelSelect
-}) {
+  models,
+  onModelSelect,
+  isModelDropdownOpen,
+  setIsModelDropdownOpen,
+  modelDropdownRef
+}) => {
+  // Function to handle dropdown open state
+  const handleModelDropdownOpen = (open) => {
+    setIsModelDropdownOpen(open);
+  };
+
   return (
     <div className={cn(
-      "fixed top-40 left-4 rounded-xl shadow-lg p-1 space-y-2 flex flex-col items-center",
+      "flex flex-col gap-2 p-2 rounded-xl shadow-lg",
       "bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60",
       "border border-border"
     )}>
@@ -70,55 +77,6 @@ function CanvasToolbar({
           onClick={onToolSelect}
         />
       ))}
-      
-      <div className="w-full h-px bg-border" />
-      
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <div className="relative">
-            <button
-              className={cn(
-                "p-2 rounded-lg transition-all duration-200 relative group",
-                "hover:bg-secondary text-muted-foreground",
-                "light:hover:bg-gray-100 dark:hover:bg-gray-800"
-              )}
-              title="Select Model"
-            >
-              <Bot className="w-5 h-5" />
-              <span className={cn(
-                "absolute hidden group-hover:block",
-                "left-14 top-1/2 -translate-y-1/2", // Position to the right of the button
-                "px-2 py-1 text-xs rounded whitespace-nowrap",
-                "bg-popover text-popover-foreground",
-                "shadow-md border border-border",
-                "z-50"
-              )}>
-                {selectedModel || 'Select Model'}
-              </span>
-            </button>
-          </div>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent 
-          side="right" 
-          align="start" 
-          className="min-w-[200px]"
-        >
-          {models.map((model) => (
-            <DropdownMenuItem 
-              key={model.name}
-              className="flex items-center justify-between"
-              onClick={() => onModelSelect(model.name)}
-            >
-              <span>{model.name}</span>
-              {selectedModel === model.name && (
-                <span className="h-2 w-2 rounded-full bg-primary"/>
-              )}
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
-
-      <div className="w-full h-px bg-border" />
     </div>
   );
 }

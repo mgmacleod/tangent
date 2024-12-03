@@ -174,7 +174,7 @@ export default function FileUploader({ onProcessingComplete }) {
 
     return (
         <>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center">
                 <input
                     ref={fileInputRef}
                     type="file"
@@ -185,14 +185,12 @@ export default function FileUploader({ onProcessingComplete }) {
                 />
                 <Button
                     variant="outline"
-                    className="gap-2"
+                    size="icon"
                     onClick={() => fileInputRef.current?.click()}
                 >
                     <Upload className="h-4 w-4" />
-                    Upload
                 </Button>
             </div>
-
             <Dialog open={isOpen} onOpenChange={setIsOpen}>
                 <DialogContent className="sm:max-w-[425px] top-96">
                     <DialogHeader>

@@ -1,79 +1,107 @@
 import React, { useState, useCallback, useEffect } from 'react';
+import axios from "axios";
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
-import MainDashboard from './MainDashboard';
-import TangentChat from './TangentChat';
-import TangentLogo from './TangentLogo';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/tabs';
+import { Share2, Download, ArrowLeft, Plus, Bot, PanelLeftClose, PanelLeft } from 'lucide-react';
+import ChatPersistenceManager from './ChatPersistanceManager';
 import FileUploader from './FileUploader';
 import { Button } from './ui/button';
-import { Share2, Download, ArrowLeft, Plus, Bot } from 'lucide-react';
-import { ThemeToggle } from './ThemeToggle';
-import { useVisualization } from './VisualizationProvider';
 import ModelsModal from './ModelsModal';
+import { ThemeToggle } from './ThemeToggle';
+import { ScrollArea } from './ui/scroll-area';
+import TangentLogo from './TangentLogo';
+import { Sparkles, ChartBarIcon, Text } from 'lucide-react';
+import ExploreTab from './ExploreTab';
+import TopicsPanel from './TopicsPanel';
+import MainDashboard from './MainDashboard';
+import TangentChat from './TangentChat';
+import { useVisualization } from './VisualizationProvider';
+
 
 const SharedHeader = ({
   handleRefresh,
   theme,
   setTheme,
-  currentView,
-  handleBack,
   onNewThread,
-  lastConversation,
-  onManageModels
+  onManageModels,
+  isPanelCollapsed,
+  onPanelToggle,
+  nodes,
+  setNodes,
+  activeChat,
+  setActiveChat
 }) => {
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 bg-background/90 backdrop-blur-md shadow-md">
-      <div className="w-full mx-auto px-8 py-4 relative flex items-center">
-        {/* Left section */}
-        <div className="flex-1 flex items-center justify-start space-x-4">
-          {currentView === 'conversation' && (
-            <Button
-              variant="ghost"
-              className="p-2"
-              onClick={handleBack}
-              aria-label="Go Back"
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-          )}
-        </div>
+    <header className={`${isPanelCollapsed ? 'w-screen' : 'w-[80vw]'} h-16 bg-background border border-border ${isPanelCollapsed ? 'left-0' : 'left-[20vw]'} z-[100] flex items-center px-6 transition-all duration-300`}>
+      <Button
+        variant="outline"
+        size="icon"
+        onClick={onPanelToggle}
+        className="h-9 w-9 bg-background border-border"
+      >
+        {isPanelCollapsed ? (
+          <PanelLeft className="h-4 w-4" />
+        ) : (
+          <PanelLeftClose className="h-4 w-4" />
+        )}
+      </Button>
 
-        {/* Center section - Logo */}
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-          <TangentLogo />
-        </div>
+      <div className="absolute left-0 w-full flex justify-center pointer-events-none">
+        <TangentLogo className="h-6 w-auto" />
+      </div>
 
-        {/* Right section */}
-        <div className="flex-1 flex items-center justify-end space-x-4">
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={onManageModels}
-            className="h-8 w-8"
-            aria-label="Manage Models"
-          >
-            <Bot className="h-4 w-4" />
-          </Button>
+      <div className="flex items-center gap-2 ml-auto">
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-9 w-9 bg-background border-border"
+        >
           <ThemeToggle theme={theme} setTheme={setTheme} />
-          <FileUploader onProcessingComplete={handleRefresh} />
-          <Button variant="outline" className="gap-2">
-            <Share2 className="h-4 w-4" />
-            Share
-          </Button>
-          <Button
-            onClick={onNewThread}
-            variant="default"
-            className="gap-2"
-          >
-            <Plus className="h-4 w-4" />
-            New Thread
-          </Button>
-        </div>
+        </Button>
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={onManageModels}
+          className="h-9 w-9 bg-background border-border"
+        >
+          <Bot className="h-4 w-4" />
+        </Button>
+        <FileUploader
+          onProcessingComplete={handleRefresh}
+          buttonProps={{
+            variant: "outline",
+            size: "icon",
+            className: "h-9 w-9 bg-background border-border"
+          }}
+        />
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-9 w-9 bg-background border-border"
+        >
+          <Share2 className="h-4 w-4" />
+        </Button>
+        <Button
+          onClick={onNewThread}
+          variant="default"
+          size="icon"
+          className="h-9 w-9 bg-primary"
+        >
+          <Plus className="h-4 w-4" />
+        </Button>
+
+        <ChatPersistenceManager
+          nodes={nodes}
+          onLoadChat={setNodes}
+          activeChat={activeChat}
+          setActiveChat={setActiveChat}
+        />
       </div>
     </header>
   );
 };
 
-export const SharedHeaderWrapper = ({ onNewThread, onManageModels }) => {  // Add prop
+export const SharedHeaderWrapper = ({ onNewThread, onManageModels }) => {
   const { handleRefresh, theme, setTheme, view, setView } = useVisualization();
   const [lastConversation, setLastConversation] = useState(null);
 
@@ -95,65 +123,70 @@ export const SharedHeaderWrapper = ({ onNewThread, onManageModels }) => {  // Ad
       handleBack={handleBack}
       onNewThread={onNewThread}
       lastConversation={lastConversation}
-      onManageModels={onManageModels}  // Pass it through
+      onManageModels={onManageModels}
     />
   );
 };
 
 
 export const IntegratedDashboard = () => {
-  const [selectedConversation, setSelectedConversation] = useState(null);
   const [selectedNodePosition, setSelectedNodePosition] = useState(null);
+  const [selectedConversation, setSelectedConversation] = useState(null);
   const [view, setView] = useState('clusters');
   const [lastThread, setLastThread] = useState(null);
   const { handleRefresh, theme, setTheme } = useVisualization();
-
-  // Models modal state
+  const [activeTab, setActiveTab] = React.useState('dashboard');
+  const [isPanelCollapsed, setIsPanelCollapsed] = useState(true);
+  const [showQuickInput, setShowQuickInput] = useState(true);
+  // Models state management
   const [showModelsModal, setShowModelsModal] = useState(false);
+  const [selectedModel, setSelectedModel] = useState('');
   const [localModels, setLocalModels] = useState([]);
   const [runningModels, setRunningModels] = useState([]);
-  const [selectedModel, setSelectedModel] = useState(null);
   const [modelInfo, setModelInfo] = useState(null);
   const [pullModelName, setPullModelName] = useState("");
   const [isPulling, setIsPulling] = useState(false);
   const [pullStatus, setPullStatus] = useState("");
   const [detailedView, setDetailedView] = useState(false);
 
-  // Fetch models on mount
-  useEffect(() => {
-    const fetchModels = async () => {
-      try {
-        const response = await fetch('http://localhost:11434/api/tags');
-        const data = await response.json();
-        setLocalModels(data.models);
-      } catch (error) {
-        console.error('Error fetching models:', error);
-      }
-    };
+  const [nodes, setNodes] = useState([{
+    id: 1,
+    messages: [],
+    x: window.innerWidth / 2 - 200,
+    y: 100,
+    type: 'main',
+    title: 'Main Thread',
+    branchId: '0'
+  }]);
 
-    const fetchRunningModels = async () => {
-      try {
-        const response = await fetch('http://localhost:11434/api/ps');
-        const data = await response.json();
-        setRunningModels(data.models || []);
-      } catch (error) {
-        console.error('Error fetching running models:', error);
-      }
-    };
+  const [activeChat, setActiveChat] = useState(null);
 
-    fetchModels();
-    fetchRunningModels();
-    const interval = setInterval(fetchRunningModels, 5000);
-    return () => clearInterval(interval);
-  }, []);
+  // Add these state declarations at the top with other states
+  const [sortBy, setSortBy] = useState('relevance');
+  const [selectedCluster, setSelectedCluster] = useState(null);
+  const [data, setData] = useState(null);
+
+  // Add this function with other handlers
+  const handleTopicSelect = (clusterId) => {
+    setSelectedCluster(parseInt(clusterId));
+  };
+
+  // Add this function to match what's used in MainDashboard
+  function getColor(index) {
+    const colors = [
+      "#60A5FA", "#F87171", "#34D399", "#FBBF24", "#A78BFA",
+      "#F472B6", "#FB923C", "#2DD4BF", "#4ADE80", "#A3E635",
+      "#38BDF8", "#FB7185", "#818CF8", "#C084FC", "#E879F9",
+      "#22D3EE", "#F43F5E", "#10B981", "#6366F1", "#8B5CF6"
+    ];
+    return colors[index % colors.length];
+  }
 
   const handleModelClick = async (modelName) => {
     try {
       const response = await fetch("http://localhost:11434/api/show", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ model: modelName }),
       });
       const data = await response.json();
@@ -172,8 +205,6 @@ export const IntegratedDashboard = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ model: modelName }),
       });
-
-      // Refresh models list after deletion
       const response = await fetch('http://localhost:11434/api/tags');
       const data = await response.json();
       setLocalModels(data.models);
@@ -187,23 +218,17 @@ export const IntegratedDashboard = () => {
       alert("Please enter a model name");
       return;
     }
-
     setIsPulling(true);
     setPullStatus("Starting download...");
-
     try {
       const response = await fetch("http://localhost:11434/api/pull", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ model: pullModelName.trim(), stream: false }),
       });
-
       if (!response.ok) throw new Error("Failed to pull model");
-
       setPullStatus("Model downloaded successfully");
       setPullModelName("");
-
-      // Refresh models list after pulling new model
       const tagsResponse = await fetch('http://localhost:11434/api/tags');
       const data = await tagsResponse.json();
       setLocalModels(data.models);
@@ -219,9 +244,35 @@ export const IntegratedDashboard = () => {
     setShowModelsModal(true);
   }, []);
 
+  const handleSave = useCallback(async () => {
+    if (!nodes.length) return;
+  
+    try {
+      const chatData = {
+        chatId: activeChat?.id || undefined,
+        nodes,
+        title: activeChat?.title || 'Untitled Chat',
+        metadata: {
+          nodeCount: nodes.length,
+          messageCount: nodes.reduce((acc, node) => acc + node.messages.length, 0)
+        }
+      };
+  
+      const response = await axios.post('http://localhost:5001/api/chats/save', chatData);
+      if (response.data.success) {
+        setActiveChat({
+          id: response.data.chatId,
+          title: chatData.title
+        });
+      }
+    } catch (error) {
+      console.error('Error saving chat:', error);
+    }
+  }, [nodes, activeChat]);
 
+  
   const handleNewThread = useCallback(() => {
-    const newConversation = [{  // Changed to array of nodes
+    const newConversation = [{
       id: Date.now(),
       messages: [],
       type: 'main',
@@ -241,7 +292,6 @@ export const IntegratedDashboard = () => {
       parentMessageIndex: 0,
       branchId: '0.0'
     }];
-
     setSelectedConversation(newConversation);
     setLastThread(newConversation);
     setSelectedNodePosition({
@@ -251,34 +301,241 @@ export const IntegratedDashboard = () => {
     setView('conversation');
   }, []);
 
-  const handleConversationSelect = useCallback((nodes, position) => {
-    // Ensure nodes have proper branch IDs
-    const processedNodes = nodes.map((node, index) => ({
-      ...node,
-      branchId: node.branchId || `${index}`,
-      // Ensure x/y coordinates are valid numbers
-      x: typeof node.x === 'number' ? node.x : position?.x || window.innerWidth / 2,
-      y: typeof node.y === 'number' ? node.y : position?.y || window.innerHeight / 2
-    }));
+  useEffect(() => {
+    const handleOpenConversation = (event) => {
+      const { nodes, position } = event.detail;
+      setSelectedConversation(nodes);
+      setLastThread(nodes);
+      setSelectedNodePosition(position);
+      setView('conversation');
+    };
 
-    setSelectedConversation(processedNodes);
-    setLastThread(processedNodes);
-    setSelectedNodePosition(position || {
-      x: window.innerWidth / 2,
-      y: window.innerHeight / 2
+    window.addEventListener('openConversation', handleOpenConversation);
+
+    return () => {
+      window.removeEventListener('openConversation', handleOpenConversation);
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      const isTyping = document.activeElement.tagName === 'INPUT' ||
+        document.activeElement.tagName === 'TEXTAREA';
+  
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's' && !isTyping) {
+        e.preventDefault();
+        handleSave();
+      }
+    };
+  
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleSave]);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const response = await fetch("http://127.0.0.1:5001/api/visualization");
+        const responseData = await response.json();
+        const chatsWithReflections = new Set(responseData.chats_with_reflections);
+
+        const chartData = [{
+          id: 'points',
+          data: responseData.points.map((point, i) => ({
+            x: point[0],
+            y: point[1],
+            cluster: responseData.clusters[i],
+            title: responseData.titles[i],
+            hasReflection: chatsWithReflections.has(responseData.titles[i])
+          }))
+        }];
+
+        setData({
+          chartData,
+          topics: responseData.topics
+        });
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  const handleTopicConversationSelect = async (chat) => {
+    try {
+      const baseTitle = chat.title.replace(/ \(Branch \d+\)$/, '');
+
+      // Get the branched data
+      const response = await fetch(
+        `http://127.0.0.1:5001/api/messages_all/${encodeURIComponent(baseTitle)}?type=claude`
+      );
+      const messageData = await response.json();
+
+      if (!messageData || !messageData.branches) {
+        console.error('Failed to fetch conversation data');
+        return;
+      }
+
+      // Build nodes structure for TangentChat
+      const nodes = buildConversationNodes(messageData, baseTitle);
+      console.log("Processed nodes:", nodes);
+
+      if (!nodes || nodes.length === 0) {
+        console.error('No valid nodes created from message data');
+        return;
+      }
+
+      // Calculate center position for positioning the nodes
+      const clickPosition = {
+        x: window.innerWidth / 2,
+        y: window.innerHeight / 2
+      };
+
+      // Update the conversation state and view
+      setSelectedConversation(nodes);
+      setLastThread(nodes);
+      setSelectedNodePosition(clickPosition);
+      setView('conversation');
+    } catch (error) {
+      console.error('Error in conversation click handler:', error);
+    }
+  };
+
+  // Helper function to build conversation nodes
+  const buildConversationNodes = (responseData, chatTitle) => {
+    if (!responseData || !responseData.branches) {
+      console.error('Invalid response data structure');
+      return [];
+    }
+
+    const nodes = [];
+    const messageToNodeMap = new Map();
+    let nodeIdCounter = 1;
+
+    // First create the main thread (branch '0')
+    const mainBranch = responseData.branches['0'];
+    if (mainBranch) {
+      const mainNode = {
+        id: nodeIdCounter++,
+        title: chatTitle,
+        messages: mainBranch.map(msg => ({
+          role: msg.sender === 'human' ? 'user' : 'assistant',
+          content: msg.text,
+          messageId: msg.message_id
+        })),
+        type: 'main',
+        branchId: '0',
+        x: window.innerWidth / 4,
+        y: window.innerHeight / 3
+      };
+      nodes.push(mainNode);
+      mainBranch.forEach(msg => messageToNodeMap.set(msg.message_id, mainNode.id));
+    }
+
+    // Then create all branch nodes
+    Object.entries(responseData.branches).forEach(([branchId, messages]) => {
+      if (branchId === '0') return; // Skip main thread
+
+      const firstMessage = messages[0];
+      if (!firstMessage?.parent_message_id) return;
+
+      const parentNodeId = messageToNodeMap.get(firstMessage.parent_message_id);
+      const parentNode = nodes.find(n => n.id === parentNodeId);
+
+      if (!parentNode) {
+        console.warn(`Parent node not found for branch ${branchId}`);
+        return;
+      }
+
+      const parentMessageIndex = parentNode.messages.findIndex(
+        msg => msg.messageId === firstMessage.parent_message_id
+      );
+
+      const branchNode = {
+        id: nodeIdCounter++,
+        title: `${chatTitle} (Branch ${branchId})`,
+        messages: messages.map(msg => ({
+          role: msg.sender === 'human' ? 'user' : 'assistant',
+          content: msg.text,
+          messageId: msg.message_id
+        })),
+        type: 'branch',
+        parentId: parentNodeId,
+        parentMessageIndex: parentMessageIndex >= 0 ? parentMessageIndex : 0,
+        branchId: branchId,
+        x: parentNode.x + 300,
+        y: parentNode.y + (parentMessageIndex * 50),
+        // Add context messages for the branch
+        contextMessages: [
+          ...parentNode.messages.slice(0, parentMessageIndex + 1),
+          ...messages.map(msg => ({
+            role: msg.sender === 'human' ? 'user' : 'assistant',
+            content: msg.text,
+            messageId: msg.message_id
+          }))
+        ]
+      };
+
+      nodes.push(branchNode);
+      messages.forEach(msg => messageToNodeMap.set(msg.message_id, branchNode.id));
     });
-    setView('conversation');
-  }, []);
-  const handleBack = useCallback(() => {
-    setView('clusters');
-  }, []);
 
+    return nodes;
+  };
 
-
-  // Inside IntegratedDashboard.jsx return statement
   return (
-    <LayoutGroup>
-      <div className="fixed inset-0 flex flex-col bg-background">
+    <div className="flex h-screen w-full bg-background overflow-hidden">
+      {/* Left Sidebar */}
+      {!isPanelCollapsed && (
+        <div className="fixed top-0 left-0 w-[20vw] h-full py-2 border-r border-border flex flex-col transition-all duration-300">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
+            <div className="px-4 py-2">
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="dashboard" className="gap-2">
+                  <Sparkles className="h-4 w-4" />
+                  Map
+                </TabsTrigger>
+                <TabsTrigger value="explore" className="gap-2">
+                  <ChartBarIcon className="h-4 w-4" />
+                  Explore
+                </TabsTrigger>
+                <TabsTrigger value="topics" className="gap-2">
+                  <Text className="h-4 w-4" />
+                  Topics
+                </TabsTrigger>
+              </TabsList>
+            </div>
+
+            <div className="flex-1 p-4 overflow-hidden">
+              <TabsContent value="dashboard" className="h-full m-0 overflow-hidden">
+                <MainDashboard />
+              </TabsContent>
+              <TabsContent value="explore" className="h-full m-0">
+                <ScrollArea className="h-full">
+                  <ExploreTab />
+                </ScrollArea>
+              </TabsContent>
+              <TabsContent value="topics" className="h-full m-0">
+                <ScrollArea className="h-full">
+                  <TopicsPanel
+                    data={data}
+                    sortBy={sortBy}
+                    setSortBy={setSortBy}
+                    selectedCluster={selectedCluster}
+                    handleTopicSelect={handleTopicSelect}
+                    getColor={getColor}
+                    onConversationSelect={handleTopicConversationSelect}
+                  />
+                </ScrollArea>
+              </TabsContent>
+            </div>
+          </Tabs>
+        </div>
+      )}
+
+      {/* Right Content Area */}
+      <div className={`${isPanelCollapsed ? 'w-full' : 'ml-[20vw] w-[80vw]'} flex flex-col transition-all duration-300`}>
         <SharedHeader
           handleRefresh={handleRefresh}
           theme={theme}
@@ -288,6 +545,12 @@ export const IntegratedDashboard = () => {
           onNewThread={handleNewThread}
           lastConversation={lastThread}
           onManageModels={handleManageModels}
+          isPanelCollapsed={isPanelCollapsed}
+          onPanelToggle={() => setIsPanelCollapsed(!isPanelCollapsed)}
+          nodes={nodes}
+          setNodes={setNodes}
+          activeChat={activeChat}
+          setActiveChat={setActiveChat}
         />
 
         <ModelsModal
@@ -307,71 +570,20 @@ export const IntegratedDashboard = () => {
           modelInfo={modelInfo}
           selectedModel={selectedModel}
         />
-        <div className="flex-1 flex overflow-hidden">
-          <div className="flex-1 flex flex-col overflow-hidden">
-            <AnimatePresence mode="wait" initial={false}>
-              {view === 'conversation' ? (
-                <motion.div
-                  key="conversation"
-                  className="absolute inset-1"
-                  initial={{
-                    opacity: 0,
-                    scale: 0.8,
-                    x: selectedNodePosition?.x ? selectedNodePosition.x - window.innerWidth / 2 : 0,
-                    y: selectedNodePosition?.y ? selectedNodePosition.y - window.innerHeight / 2 : 0
-                  }}
-                  animate={{
-                    opacity: 1,
-                    scale: 1,
-                    x: 0,
-                    y: 0,
-                    transition: {
-                      type: "spring",
-                      stiffness: 300,
-                      damping: 30,
-                      mass: 0.8
-                    }
-                  }}
-                  exit={{
-                    opacity: 0,
-                    scale: 0.8,
-                    x: selectedNodePosition?.x ? selectedNodePosition.x - window.innerWidth / 2 : 0,
-                    y: selectedNodePosition?.y ? selectedNodePosition.y - window.innerHeight / 2 : 0
-                  }}
-                >
-                  <TangentChat
-                    initialConversation={selectedConversation}
-                    selectedNodePosition={selectedNodePosition}
-                    onBack={() => setView('clusters')}
-                  />
-                </motion.div>
-              ) : (
-                <motion.div
-                  key="dashboard"
-                  className="absolute  top-16 right-16 inset-1"
-                  initial={{ opacity: 0, x: "-100%" }}
-                  animate={{
-                    opacity: 1,
-                    x: "0%",
-                    transition: {
-                      type: "spring",
-                      stiffness: 300,
-                      damping: 30,
-                      mass: 0.8
-                    }
-                  }}
-                  exit={{ opacity: 0, x: "-100%" }}
-                >
-                  <MainDashboard
-                    onConversationSelect={handleConversationSelect}
-                  />
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
+
+        <div className="flex-1 overflow-hidden">
+          <TangentChat
+            initialConversation={selectedConversation}
+            isPanelCollapsed={isPanelCollapsed}
+            nodes={nodes}
+            setNodes={setNodes}
+            activeChat={activeChat}
+            setActiveChat={setActiveChat}
+          />
         </div>
       </div>
-    </LayoutGroup>
+    </div>
   );
 };
+
 export default IntegratedDashboard;

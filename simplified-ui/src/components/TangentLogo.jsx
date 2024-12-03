@@ -163,14 +163,14 @@ export function TangentLogo() {
         <div
             className={cn(
                 "w-[180px] h-[36px] relative perspective-[1000px] rounded-lg overflow-hidden",
-                "bg-card dark:bg-card/80"
+                // Removed bg-card classes to make background transparent
             )}
         >
             <div
                 ref={gridRef}
                 className={cn(
                     "w-full h-full grid grid-cols-[repeat(15,1fr)] grid-rows-[repeat(5,1fr)]",
-                    "relative gap-0" // Remove gaps between cells
+                    "relative gap-0"
                 )}
             >
                 {cells.map((_, i) => {
@@ -182,7 +182,6 @@ export function TangentLogo() {
                             key={i}
                             className="relative [transform-style:preserve-3d] transition-transform duration-1000 ease-in-out cell"
                             style={{
-                                // Remove any borders or background colors
                                 border: 'none',
                                 backgroundColor: 'transparent',
                             }}
@@ -192,7 +191,6 @@ export function TangentLogo() {
                                     "absolute w-full h-full [backface-visibility:hidden] overflow-hidden front"
                                 )}
                                 style={{
-                                    // Ensure consistent background
                                     backgroundColor: 'transparent',
                                 }}
                             >
@@ -210,7 +208,6 @@ export function TangentLogo() {
                                     "absolute w-full h-full [backface-visibility:hidden] overflow-hidden [transform:rotateY(180deg)] back"
                                 )}
                                 style={{
-                                    // Ensure consistent background
                                     backgroundColor: 'transparent',
                                 }}
                             >
@@ -223,12 +220,12 @@ export function TangentLogo() {
                                     <div
                                         className={cn(
                                             "font-sans text-[24px] font-bold w-full h-full ps-4 flex items-center justify-center",
-                                            "text-foreground dark:text-foreground bg-clear"
+                                            "text-foreground dark:text-foreground"
+                                            // Removed bg-clear class
                                         )}
                                     >
                                         TANGENT
                                     </div>
-
                                 </div>
                             </div>
                         </div>
