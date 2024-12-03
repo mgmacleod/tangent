@@ -192,7 +192,7 @@ export default function FileUploader({ onProcessingComplete }) {
                 </Button>
             </div>
             <Dialog open={isOpen} onOpenChange={setIsOpen}>
-                <DialogContent className="sm:max-w-[425px] top-96">
+                <DialogContent className="sm:max-w-[425px]">
                     <DialogHeader>
                         <DialogTitle>Processing Data</DialogTitle>
                         <DialogDescription>
