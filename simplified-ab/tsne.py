@@ -1291,7 +1291,8 @@ def get_reflections():
             return jsonify({'reflections': []})
 
         # Generate embedding for current context
-        context_embedding = get_embeddings([current_context])[0]
+
+        context_embedding = np.array(get_embeddings([current_context])[0]).flatten()
 
         # Load reflections and embeddings
         reflections_file = os.path.join(data_dir, 'reflections.json')
