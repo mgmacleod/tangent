@@ -7,3 +7,14 @@
 /simplified-ui/node_modules/
 .DS_Store
 
+
+output.wav
+simplified-ab/reflection/
+simplified-ab/test/
+simplified-ui/build/
+simplified-ui/dist/
+simplified-ui/electron-builder.json
+simplified-ui/electron/
+simplified-ui/src/config.js
+simplified-ui/webpack.config.js
+utils/voice_assistant.py

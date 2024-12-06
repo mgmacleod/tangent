@@ -1,7 +1,7 @@
 import React from 'react';
-import { IntegratedDashboard } from './components/IntegratedDashboard';
-import VisualizationProvider from './components/VisualizationProvider';
-import OnboardingTour from './components/OnboardingTour';
+import { IntegratedDashboard } from './components//layout/IntegratedDashboard';
+import VisualizationProvider from './components/providers/VisualizationProvider';
+import OnboardingTour from './components/overlay/OnboardingTour';
 
 
 import './styles/Global.css';
