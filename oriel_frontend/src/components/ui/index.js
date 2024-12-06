@@ -5,7 +5,7 @@ import * as SliderPrimitive from "@radix-ui/react-slider";
 import * as SwitchPrimitive from "@radix-ui/react-switch";
 import * as LabelPrimitive from "@radix-ui/react-label";
 
-import { cn } from "../utils/utils";
+import { cn } from "./lib/utils";
 
 // 1. Updated Slider Component
 const Slider = React.forwardRef(({ className, min = 0, max = 100, step = 1, value = [0], onValueChange, ...props }, ref) => {
