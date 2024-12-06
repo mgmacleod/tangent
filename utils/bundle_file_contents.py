@@ -53,7 +53,7 @@ def main():
     current_script = str(Path(__file__).absolute())
     
     # Base directory (modify this to your needs)
-    base_dir = "."
+    base_dir = "./simplified-ui/src/components"
     
     # Paths to ignore
     ignore_paths = [
