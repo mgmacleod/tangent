@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="https://github.com/user-attachments/assets/4243cc3b-1d62-4aa9-aa77-0d8414e06053" alt="tangent" style="border-radius: 10px">
+  <img src="https://github.com/user-attachments/assets/cd8a656e-f643-439c-a64a-694d521c43fe" alt="tangent" style="border-radius: 10px">
 </div>
 
 <div align="center">
