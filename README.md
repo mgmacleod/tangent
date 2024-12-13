@@ -17,13 +17,7 @@ Tangent is a canvas for exploring AI conversations, treating each chat branch as
 
 - 💻 Offline-First: Fully powered by local models, leveraging Ollama with plans to expand support.
 
-- 🔗 Smart Merging: Intelligently combine the most valuable insights from various conversational branches using LLM-driven analysis.
-
 - 📂 Topic Clustering: Dynamically organize and filter conversations by their inferred topics, streamlining navigation.
-
-- 🔍 Pattern Detection: Automatically identify recurring themes and challenges across conversations for deeper understanding.
-
-- 🧠 AI Reflections: Receive actionable insights into recurring struggles and overarching themes within your dialogue.
 
 - 📜 Archive Support: Comprehensive compatibility with Claude and ChatGPT data exports, with additional integrations in development.
 
@@ -35,8 +29,6 @@ Tangent is a canvas for exploring AI conversations, treating each chat branch as
 https://github.com/user-attachments/assets/55ab78f6-0b32-46ac-a234-940b24f60579
 
 
-
--yeah i like transitions so what?
 ## Prerequisites
 
 </div>
