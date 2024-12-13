@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sun, Moon, Sparkles, Atom } from 'lucide-react';
+import { Sun, Moon, Sparkles, Atom, Stars, Cloud } from 'lucide-react';
 import { Button } from '../core/button';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -29,7 +29,19 @@ export function ThemeToggle({ theme, setTheme }) {
       name: 'singed-theme',
       icon: Atom,
       label: 'Cyber',
-      className: 'text-[hsl(155,70%,35%)]'
+      className: 'text-[hsl(150,70%,35%)]'
+    },
+    {
+      name: 'celestial-theme',
+      icon: Stars,
+      label: 'Celestial',
+      className: 'text-[hsl(280,90%,70%)]'
+    },
+    {
+      name: 'void-theme',
+      icon: Cloud,
+      label: 'Void',
+      className: 'text-[hsl(270,100%,60%)]'
     }
   ];
 
@@ -43,7 +55,9 @@ export function ThemeToggle({ theme, setTheme }) {
         size="icon"
         onClick={() => setIsOpen(!isOpen)}
         className={`w-8 h-8 transition-colors ${
-          theme === 'hextech-nordic' ? 'glow pulse' : ''
+          theme === 'hextech-nordic' ? 'glow pulse' :
+          theme === 'celestial-theme' ? 'celestial-shimmer' :
+          theme === 'void-theme' ? 'void-pulse' : ''
         }`}
       >
         <Icon className={`h-4 w-4 transition-all ${themes.find(t => t.name === theme)?.className}`} />
@@ -57,7 +71,7 @@ export function ThemeToggle({ theme, setTheme }) {
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
-            className="absolute right-0 mt-2 origin-top-right"
+            className="absolute right-0 mt-2 origin-top-right z-50"
           >
             <motion.div
               initial={{ scale: 0.95 }}
@@ -72,7 +86,10 @@ export function ThemeToggle({ theme, setTheme }) {
                   <motion.button
                     key={t.name}
                     onClick={() => {
-                      document.documentElement.classList.remove('light', 'dark', 'hextech-nordic', 'singed-theme');
+                      document.documentElement.classList.remove(
+                        'light', 'dark', 'hextech-nordic', 
+                        'singed-theme', 'celestial-theme', 'void-theme'
+                      );
                       document.documentElement.classList.add(t.name);
                       setTheme(t.name);
                       localStorage.setItem('theme', t.name);
@@ -83,6 +100,8 @@ export function ThemeToggle({ theme, setTheme }) {
                       transition-colors hover:bg-accent
                       ${theme === t.name ? 'bg-accent' : ''}
                       ${t.name === 'hextech-nordic' ? 'hover:text-[hsl(195,96%,65%)]' : ''}
+                      ${t.name === 'celestial-theme' ? 'hover:text-[hsl(280,90%,70%)]' : ''}
+                      ${t.name === 'void-theme' ? 'hover:text-[hsl(270,100%,60%)]' : ''}
                     `}
                     whileHover={{ backgroundColor: 'rgba(0,0,0,0.05)' }}
                     whileTap={{ scale: 0.98 }}

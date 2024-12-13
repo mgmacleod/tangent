@@ -17,17 +17,17 @@ export const ChatTypeSelector = ({ chatType, setChatType, onDataUpdate }) => {
     const fetchVisualizationData = useCallback(async (type) => {
         const url = `http://127.0.0.1:5001/api/visualization?type=${type}`;
         console.log("Fetching from:", url);
-        
+
         try {
             const response = await fetch(url);
-            
+
             if (!response.ok) {
                 const errorText = await response.text();
                 throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
             }
 
             const responseData = await response.json();
-            
+
             // Validate the response data
             if (!responseData.points || !responseData.clusters || !responseData.titles) {
                 throw new Error("Invalid data structure received from server");
@@ -87,7 +87,11 @@ export const ChatTypeSelector = ({ chatType, setChatType, onDataUpdate }) => {
     return (
         <div className="relative">
             <button
-                className="flex h-8 w-[90px] items-center justify-between rounded-md border bg-background px-3 py-2 text-sm hover:bg-accent transition-colors disabled:opacity-50"
+                className="flex h-8 w-[90px] items-center justify-between rounded-md border 
+                    border-input bg-background px-3 py-2 text-sm ring-offset-background
+                    text-foreground hover:bg-accent hover:text-accent-foreground
+                    transition-colors disabled:opacity-50
+                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 onClick={() => handleTypeChange(chatType === 'claude' ? 'chatgpt' : 'claude')}
                 disabled={isLoading}
             >
@@ -101,7 +105,9 @@ export const ChatTypeSelector = ({ chatType, setChatType, onDataUpdate }) => {
                             ) : (
                                 <MessageCircle className="h-4 w-4" />
                             )}
-                            {chatType === 'claude' ? 'Claude' : 'ChatGPT'}
+                            <span className="text-foreground">
+                                {chatType === 'claude' ? 'Claude' : 'ChatGPT'}
+                            </span>
                         </>
                     )}
                 </div>
@@ -144,7 +150,11 @@ export const VisualizationTypeSelector = ({ visualizationType, setVisualizationT
     return (
         <div className="relative">
             <button
-                className="flex h-8 w-[90px] items-center justify-between rounded-md border bg-background px-3 py-2 text-sm hover:bg-accent transition-colors disabled:opacity-50"
+                className="flex h-8 w-[90px] items-center justify-between rounded-md border 
+                    border-input bg-background px-3 py-2 text-sm ring-offset-background
+                    text-foreground hover:bg-accent hover:text-accent-foreground
+                    transition-colors disabled:opacity-50
+                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 onClick={() => handleTypeChange(visualizationType === 'star' ? 'islands' : 'star')}
                 disabled={isLoading}
             >
@@ -158,7 +168,9 @@ export const VisualizationTypeSelector = ({ visualizationType, setVisualizationT
                             ) : (
                                 <Grid className="h-4 w-4" />
                             )}
-                            {visualizationType === 'star' ? 'Normal' : 'Islands'}
+                            <span className="text-foreground">
+                                {visualizationType === 'star' ? 'Normal' : 'Islands'}
+                            </span>
                         </>
                     )}
                 </div>

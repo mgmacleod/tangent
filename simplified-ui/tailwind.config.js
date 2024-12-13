@@ -12,7 +12,16 @@ module.exports = {
     'light',
     'dark',
     'hextech-nordic',
-    'singed-theme' 
+    'singed-theme',
+    'celestial-theme',
+    'void-theme',
+    'hextech-nordic:text-[hsl(183,100%,95%)]',
+    'singed-theme:text-[hsl(120,20%,95%)]',
+    'celestial-theme:text-[hsl(280,100%,95%)]',
+    'void-theme:text-[hsl(240,20%,98%)]',
+    'dark:text-slate-100',
+    'dark:border-slate-700',
+    'dark:hover:bg-slate-800'
   ],
   prefix: "",
   theme: {
@@ -73,15 +82,36 @@ module.exports = {
           from: { height: "var(--radix-accordion-content-height)" },
           to: { height: "0" },
         },
+        float: {
+          '0%, 100%': { transform: 'translateY(0)' },
+          '50%': { transform: 'translateY(-10px)' },
+        },
+        shimmer: {
+          '0%': { backgroundPosition: '-1000px 0' },
+          '100%': { backgroundPosition: '1000px 0' },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "float": "float 6s ease-in-out infinite",
+        "shimmer": "shimmer 2s linear infinite",
       },
     },
   },
   plugins: [
     require("tailwindcss-animate"),
-    require('@tailwindcss/typography')
+    require('@tailwindcss/typography'),
+    function ({ addUtilities }) {
+      const newUtilities = {
+        '.text-glow': {
+          'text-shadow': '0 0 10px var(--tw-shadow-color)',
+        },
+        '.bg-gradient-cosmic': {
+          'background-image': 'linear-gradient(45deg, var(--tw-gradient-from), var(--tw-gradient-to))',
+        },
+      }
+      addUtilities(newUtilities)
+    },
   ],
 }

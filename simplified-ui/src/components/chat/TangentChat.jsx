@@ -92,6 +92,7 @@ const TangentChat = ({
 
   const { handleRefresh, theme, setTheme } = useVisualization();
 
+  const [activeResponses, setActiveResponses] = useState(new Map());
 
   const [containerWidth, setContainerWidth] = useState(400);
 
@@ -132,6 +133,10 @@ const TangentChat = ({
     x: window.innerWidth / 2 - 192, // Half of input width (384/2)
     y: window.innerHeight - 90
   });
+
+  const [activeThreadId, setActiveThreadId] = useState(initialConversation?.id || 1);
+
+
 
   const [contentHeight, setContentHeight] = useState(0);
 
@@ -309,168 +314,133 @@ const TangentChat = ({
     setInputValue(newValue);
   };
 
-  const handleSendMessage = async () => {
-    if (!inputValue.trim() || !selectedNode) return;
+  const handleSendMessage = async (nodeId, message) => {
+    if (!message.trim()) return;
 
-    const currentNode = nodes.find(n => n.id === selectedNode);
+    const currentNode = nodes.find(n => n.id === nodeId);
     if (!currentNode) return;
 
-    setIsLoading(true);
-    const newMessage = { role: 'user', content: inputValue };
+    // Add user message immediately
+    const newMessage = { role: 'user', content: message };
+    const updatedMessages = [...currentNode.messages, newMessage];
 
-    // Create initial messages arrays including the new user message
-    const visibleMessages = [...currentNode.messages, newMessage];
-    const contextMessages = currentNode.type === 'branch'
-      ? [...(currentNode.contextMessages || []), newMessage]
-      : null;
-
-    // Update node with user message immediately
+    // Update nodes with user message
     setNodes(prevNodes => prevNodes.map(node =>
-      node.id === selectedNode
+      node.id === nodeId
         ? {
           ...node,
-          messages: visibleMessages,
-          contextMessages: currentNode.type === 'branch' ? contextMessages : undefined
+          messages: updatedMessages,
+          contextMessages: node.type === 'branch'
+            ? [...(node.contextMessages || []), newMessage]
+            : undefined
         }
         : node
     ));
 
-    setInputValue('');
-    setStreamingMessage("");
-    setContinuationCount(0);
-    lastResponseTime.current = Date.now();
+    // Track this conversation as active
+    setActiveResponses(prev => new Map(prev).set(nodeId, true));
 
     try {
       const conversationContext = currentNode.type === 'branch'
-        ? contextMessages
-        : visibleMessages;
-
-      const conversationHistory = conversationContext
-        .map(msg => `${msg.role === 'user' ? 'Human' : 'Assistant'}: ${msg.content}`)
-        .join('\n');
-
-      const requestBody = {
-        model: selectedModel,
-        prompt: `${conversationHistory}\n\nHuman: ${inputValue}\n\nAssistant:`,
-        system: currentNode.systemPrompt || systemPrompt,
-        stream: true,
-        options: {
-          temperature: temperature, // Use the temperature state here
-          num_ctx: 8192,
-          top_p: 0.9,
-          top_k: 20,
-          typical_p: 0.7,
-          mirostat: 1,
-          mirostat_tau: 0.8,
-          mirostat_eta: 0.6,
-        }
-      };
+        ? [...(currentNode.contextMessages || []), newMessage]
+        : updatedMessages;
 
       const response = await fetch('http://localhost:11434/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody)
+        body: JSON.stringify({
+          model: selectedModel,
+          prompt: conversationContext.map(msg =>
+            `${msg.role === 'user' ? 'Human' : 'Assistant'}: ${msg.content}`
+          ).join('\n') + '\n\nHuman: ' + message + '\n\nAssistant:',
+          stream: true,
+          system: currentNode.systemPrompt || systemPrompt,
+          options: {
+            temperature: temperature,
+            num_ctx: 8192,
+            top_p: 0.9,
+            top_k: 20,
+            typical_p: 0.7,
+            mirostat: 1,
+            mirostat_tau: 0.8,
+            mirostat_eta: 0.6,
+          }
+        })
       });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
-      }
 
       let accumulatedResponse = '';
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
 
-      const updateStreamingContent = (content) => {
-        setStreamingMessage(content);
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
 
-        // Only update the node's streamingContent field
-        setNodes(prevNodes => prevNodes.map(node => {
-          if (node.id !== selectedNode) return node;
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n');
 
-          return {
-            ...node,
-            streamingContent: content
-          };
-        }));
-      };
+        for (const line of lines) {
+          if (!line.trim()) continue;
 
-      try {
-        while (true) {
-          const { value, done } = await reader.read();
-          if (done) break;
+          try {
+            const data = JSON.parse(line);
+            if (data.response !== undefined) {
+              accumulatedResponse += data.response;
 
-          const chunk = decoder.decode(value);
-          const lines = chunk.split('\n');
-
-          for (const line of lines) {
-            if (!line.trim()) continue;
-
-            try {
-              const data = JSON.parse(line);
-
-              if (data.error) {
-                console.error('Server returned error:', data.error);
-                continue;
-              }
-
-              if (data.response !== undefined) {
-                accumulatedResponse += data.response;
-                updateStreamingContent(accumulatedResponse);
-
-                const now = Date.now();
-                if (lastResponseTime.current && (now - lastResponseTime.current) > 500) {
-                  setContinuationCount(prev => prev + 1);
-                }
-                lastResponseTime.current = now;
-              }
-            } catch (e) {
-              console.error('Error parsing JSON line:', e);
+              // Update streaming content for this specific node
+              setNodes(prevNodes => prevNodes.map(node =>
+                node.id === nodeId
+                  ? { ...node, streamingContent: accumulatedResponse }
+                  : node
+              ));
             }
+          } catch (error) {
+            console.error('Error parsing JSON line:', error);
           }
         }
-      } finally {
-        // Add the final complete message only once
-        setNodes(prevNodes => prevNodes.map(node => {
-          if (node.id !== selectedNode) return node;
-
-          const finalMessage = {
-            role: 'assistant',
-            content: accumulatedResponse,
-            continuationCount
-          };
-
-          // Get messages without any streaming message
-          const baseMessages = node.messages.filter(msg => !msg.isStreaming);
-          const baseContextMessages = node.type === 'branch'
-            ? node.contextMessages?.filter(msg => !msg.isStreaming)
-            : null;
-
-          return {
-            ...node,
-            messages: [...baseMessages, finalMessage],
-            contextMessages: node.type === 'branch'
-              ? [...baseContextMessages, finalMessage]
-              : undefined,
-            streamingContent: null // Clear streaming content
-          };
-        }));
-
-        setStreamingMessage(""); // Clear streaming message
-        reader.releaseLock();
       }
+
+      // Final update with complete response
+      setNodes(prevNodes => prevNodes.map(node => {
+        if (node.id !== nodeId) return node;
+
+        const finalMessage = {
+          role: 'assistant',
+          content: accumulatedResponse,
+          continuationCount: 0
+        };
+
+        return {
+          ...node,
+          messages: [...updatedMessages, finalMessage],
+          contextMessages: node.type === 'branch'
+            ? [...(node.contextMessages || []), finalMessage]
+            : undefined,
+          streamingContent: null
+        };
+      }));
+
     } catch (error) {
       console.error('Error in handleSendMessage:', error);
-      setStreamingMessage("");
 
-      // Update nodes to remove streaming state
-      setNodes(prevNodes => prevNodes.map(node => ({
-        ...node,
-        streamingContent: null
-      })));
+      // Update nodes to remove streaming state in case of error
+      setNodes(prevNodes => prevNodes.map(node =>
+        node.id === nodeId
+          ? { ...node, streamingContent: null }
+          : node
+      ));
     } finally {
-      setIsLoading(false);
+      // Remove this conversation from active responses
+      setActiveResponses(prev => {
+        const next = new Map(prev);
+        next.delete(nodeId);
+        return next;
+      });
     }
+  };
+
+  const handleFloatingInputSend = (message) => {
+    handleSendMessage(selectedNode, message);
   };
 
   const handleUpdateTitle = (nodeId, newTitle) => {
@@ -1105,6 +1075,11 @@ const TangentChat = ({
   };
 
 
+  const handleSelect = (nodeId) => {
+    setSelectedNode(nodeId);
+    setActiveThreadId(nodeId);
+  };
+
   const getConnectedBranches = (nodeId, messageIndex) => {
     const currentNode = nodes.find(n => n.id === nodeId);
     if (!currentNode) return { left: [], right: [], parent: null };
@@ -1507,7 +1482,7 @@ const TangentChat = ({
               isExpanded={expandedNodes.has(node.id)}
               isSelected={selectedNode === node.id}
               onToggleExpand={() => handleToggleExpand(node.id)}
-              onSelect={() => setSelectedNode(node.id)}
+              onSelect={() => handleSelect(node.id)}
               onDelete={() => handleDeleteNode(node.id)}
               onDragStart={handleDragStart}
               onCreateBranch={handleCreateBranch}
@@ -1517,6 +1492,7 @@ const TangentChat = ({
               expandedMessages={expandedMessages}
               onToggleMessageExpand={handleToggleMessageExpand}
               onUpdateTitle={handleUpdateTitle}
+              isActiveThread={node.id === activeThreadId}
               style={{
                 position: 'absolute',
                 left: `${node.x}px`,
@@ -1563,11 +1539,12 @@ const TangentChat = ({
       <FloatingInput
         show={showQuickInput}
         onClose={() => setShowQuickInput(false)}
-        onSend={handleSendMessage}
-        isLoading={isLoading}
+        onSend={handleFloatingInputSend}
+        isLoading={activeResponses.has(selectedNode)}
         position={quickInputPosition}
         inputValue={inputValue}
         onInputChange={handleInputChange}
+        allowParallel={true}
         style={{
           position: contentHeight > window.innerHeight ? 'fixed' : 'absolute',
           bottom: 20,
