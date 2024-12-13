@@ -71,7 +71,8 @@ export const BranchNode = ({
     currentMessageIndex,
     style,
     branchId,
-    onUpdateTitle
+    onUpdateTitle,
+    isActiveThread = false
 }) => {
     const [isRecording, setIsRecording] = useState(null);
     const [expandedMessage, setExpandedMessage] = useState(null);
@@ -81,6 +82,34 @@ export const BranchNode = ({
     const titleInputRef = useRef(null);
     const [expandedModal, setExpandedModal] = useState(null);
 
+
+    const getAnimatedBorderStyles = (color) => {
+        if (!isActiveThread) return {};
+
+        return {
+            position: 'relative',
+            '&::before': {
+                content: '""',
+                position: 'absolute',
+                inset: '-2px',
+                padding: '2px',
+                borderRadius: 'inherit',
+                background: `linear-gradient(
+                    90deg,
+                    ${color} 0%,
+                    ${color}50 25%,
+                    ${color}90 50%,
+                    ${color}50 75%,
+                    ${color} 100%
+                )`,
+                WebkitMask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
+                WebkitMaskComposite: 'xor',
+                maskComposite: 'exclude',
+                animation: 'borderAnimation 4s linear infinite',
+                zIndex: 0
+            }
+        };
+    };
 
     const generateTitle = async () => {
         try {
@@ -369,7 +398,7 @@ export const BranchNode = ({
         );
     };
 
-        useEffect(() => {
+    useEffect(() => {
         // Show title prompt for new nodes
         if (node.messages.length === 0) {
             setShowTitlePrompt(true);
@@ -391,13 +420,14 @@ export const BranchNode = ({
                 className={cn(
                     "branch-node relative",
                     "bg-background/25 backdrop-blur supports-[backdrop-filter]:bg-background/20",
-                    "border-2",
                     "hover:shadow-lg transition-all duration-300",
                     isSelected && "ring-2 ring-primary",
-                    node.type !== 'main' ? "cursor-move" : "cursor-default"
+                    node.type !== 'main' ? "cursor-move" : "cursor-default",
+                    node.streamingContent && "loading" // Add loading class when streaming
                 )}
                 style={{
-                    borderColor: mainColor,
+                    '--border-color': mainColor,
+                    '--border-color-light': `${mainColor}50`,
                     maxWidth: '600px',
                     transform: style?.transform || 'none'
                 }}

@@ -37,7 +37,7 @@ const SharedHeader = ({
         variant="outline"
         size="icon"
         onClick={onPanelToggle}
-        className="h-9 w-9 bg-background border-border"
+        className="h-9 w-9 border-border"
       >
         {isPanelCollapsed ? (
           <PanelLeft className="h-4 w-4" />
@@ -54,7 +54,7 @@ const SharedHeader = ({
         <Button
           variant="outline"
           size="icon"
-          className="h-9 w-9 bg-background border-border"
+          className="h-9 w-9 border-border"
         >
           <ThemeToggle theme={theme} setTheme={setTheme} />
         </Button>
@@ -62,7 +62,7 @@ const SharedHeader = ({
           variant="outline"
           size="icon"
           onClick={onManageModels}
-          className="h-9 w-9 bg-background border-border"
+          className="h-9 w-9 border-border"
         >
           <Bot className="h-4 w-4" />
         </Button>
@@ -71,13 +71,13 @@ const SharedHeader = ({
           buttonProps={{
             variant: "outline",
             size: "icon",
-            className: "h-9 w-9 bg-background border-border"
+            className: "h-9 w-9"
           }}
         />
         <Button
           variant="outline"
           size="icon"
-          className="h-9 w-9 bg-background border-border"
+          className="h-9 w-9 border-border"
         >
           <Share2 className="h-4 w-4" />
         </Button>
@@ -246,7 +246,7 @@ export const IntegratedDashboard = () => {
 
   const handleSave = useCallback(async () => {
     if (!nodes.length) return;
-  
+
     try {
       const chatData = {
         chatId: activeChat?.id || undefined,
@@ -257,7 +257,7 @@ export const IntegratedDashboard = () => {
           messageCount: nodes.reduce((acc, node) => acc + node.messages.length, 0)
         }
       };
-  
+
       const response = await axios.post('http://localhost:5001/api/chats/save', chatData);
       if (response.data.success) {
         setActiveChat({
@@ -270,7 +270,7 @@ export const IntegratedDashboard = () => {
     }
   }, [nodes, activeChat]);
 
-  
+
   const handleNewThread = useCallback(() => {
     const newConversation = [{
       id: Date.now(),
@@ -321,13 +321,13 @@ export const IntegratedDashboard = () => {
     const handleKeyDown = (e) => {
       const isTyping = document.activeElement.tagName === 'INPUT' ||
         document.activeElement.tagName === 'TEXTAREA';
-  
+
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's' && !isTyping) {
         e.preventDefault();
         handleSave();
       }
     };
-  
+
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleSave]);

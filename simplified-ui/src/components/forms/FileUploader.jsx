@@ -22,15 +22,17 @@ import {
     Progress,
 } from "../index";
 import { Alert, AlertDescription } from "../core/alert";
+import { cn } from "../../utils/utils";
 
 
-export default function FileUploader({ onProcessingComplete }) {
+export default function FileUploader({ onProcessingComplete, buttonProps = {} }) {
     const [isOpen, setIsOpen] = useState(false);
     const [taskId, setTaskId] = useState(null);
     const [status, setStatus] = useState(null);
     const [error, setError] = useState(null);
     const fileInputRef = useRef(null);
     const pollInterval = useRef(null);
+
 
     const resetState = () => {
         setTaskId(null);
@@ -172,6 +174,7 @@ export default function FileUploader({ onProcessingComplete }) {
         ));
     };
 
+
     return (
         <>
             <div className="flex items-center">
@@ -184,13 +187,26 @@ export default function FileUploader({ onProcessingComplete }) {
                     id="conversation-upload"
                 />
                 <Button
-                    variant="outline"
-                    size="icon"
+                    {...buttonProps}
+                    variant={buttonProps.variant || "outline"}
+                    size={buttonProps.size || "icon"}
+                    className={cn(
+                        "h-9 w-9",
+                        // Add theme-specific text colors
+                        "text-foreground",
+                        "dark:text-slate-100",
+                        "hextech-nordic:text-[hsl(183,100%,95%)]",
+                        "singed-theme:text-[hsl(120,20%,95%)]",
+                        "celestial-theme:text-[hsl(280,100%,95%)]",
+                        "void-theme:text-[hsl(240,20%,98%)]",
+                        buttonProps.className
+                    )}
                     onClick={() => fileInputRef.current?.click()}
                 >
                     <Upload className="h-4 w-4" />
                 </Button>
             </div>
+
             <Dialog open={isOpen} onOpenChange={setIsOpen}>
                 <DialogContent className="sm:max-w-[425px]">
                     <DialogHeader>

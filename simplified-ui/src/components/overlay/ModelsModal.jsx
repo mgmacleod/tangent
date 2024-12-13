@@ -220,11 +220,11 @@ const ModelsModal = ({
             >
               <div className="bg-background border-t rounded-t-xl shadow-2xl max-h-[85vh] overflow-hidden">
                 <div className="group flex justify-center py-2 cursor-grab active:cursor-grabbing">
-                  <div className="w-12 h-1.5 bg-foreground/20 rounded-full transition-colors group-hover:bg-foreground/40" />
+                  <div className="w-12 h-1.5 bg-muted-foreground/20 rounded-full transition-colors group-hover:bg-muted-foreground/40" />
                 </div>
                 <div className="container max-w-6xl mx-auto pb-6 px-4">
                   <CardHeader className="flex items-center justify-between pb-3">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 text-foreground">
                       <Bot className="h-5 w-5" />
                       <CardTitle>Model Management</CardTitle>
                     </div>
@@ -233,11 +233,16 @@ const ModelsModal = ({
                         variant="ghost"
                         size="icon"
                         onClick={() => setDetailedView(!detailedView)}
-                        className="h-8 w-8"
+                        className="h-8 w-8 text-foreground"
                       >
                         <GripHorizontal className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="icon" onClick={onClose}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={onClose}
+                        className="h-8 w-8 text-foreground"
+                      >
                         <X className="h-4 w-4" />
                       </Button>
                     </div>
@@ -251,84 +256,82 @@ const ModelsModal = ({
                       </TabsList>
                       <TabsContent value="local" className="mt-0">
                         <ScrollArea className="h-[calc(85vh-250px)]">
-                          <div className="flex flex-col md:flex-row md:space-x-4">
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             {/* Text Models Section */}
-                            <div className="flex-1 space-y-3">
-                              <div className="flex items-center gap-2">
+                            <div className="space-y-3">
+                              <div className="flex items-center gap-2 text-foreground">
                                 <Terminal className="h-4 w-4" />
                                 <h3 className="text-sm font-medium">Text Models</h3>
                                 <Badge variant="outline" className="ml-auto">
-                                  {categorizedModels.text.length}
+                                  {models.filter(m => !m.name.includes('vision') && !m.name.includes('minilm')).length}
                                 </Badge>
                               </div>
                               <div className="space-y-4">
-                                {categorizedModels.text.map((model) => (
-                                  <ModelCard
-                                    key={model.name}
-                                    model={model}
-                                    modelType="text"
-                                    detailedView={detailedView}
-                                    onInfoClick={onModelClick}
-                                    onDeleteClick={onDeleteModel}
-                                    isRunning={runningModels.some(
-                                      (m) => m.name === model.name
-                                    )}
-                                  />
-                                ))}
+                                {models
+                                  .filter(m => !m.name.includes('vision') && !m.name.includes('minilm'))
+                                  .map((model) => (
+                                    <ModelCard
+                                      key={model.name}
+                                      model={model}
+                                      modelType="text"
+                                      detailedView={detailedView}
+                                      onInfoClick={onModelClick}
+                                      onDeleteClick={onDeleteModel}
+                                      isRunning={runningModels.some(m => m.name === model.name)}
+                                    />
+                                  ))}
                               </div>
                             </div>
 
                             {/* Vision Models Section */}
-                            <div className="flex-1 space-y-3 mt-6 md:mt-0">
-                              <div className="flex items-center gap-2">
+                            <div className="space-y-3">
+                              <div className="flex items-center gap-2 text-foreground">
                                 <Eye className="h-4 w-4" />
                                 <h3 className="text-sm font-medium">Vision Models</h3>
                                 <Badge variant="outline" className="ml-auto">
-                                  {categorizedModels.vision.length}
+                                  {models.filter(m => m.name.includes('vision')).length}
                                 </Badge>
                               </div>
                               <div className="space-y-4">
-                                {categorizedModels.vision.map((model) => (
-                                  <ModelCard
-                                    key={model.name}
-                                    model={model}
-                                    modelType="vision"
-                                    detailedView={detailedView}
-                                    onInfoClick={onModelClick}
-                                    onDeleteClick={onDeleteModel}
-                                    isRunning={runningModels.some(
-                                      (m) => m.name === model.name
-                                    )}
-                                  />
-                                ))}
+                                {models
+                                  .filter(m => m.name.includes('vision'))
+                                  .map((model) => (
+                                    <ModelCard
+                                      key={model.name}
+                                      model={model}
+                                      modelType="vision"
+                                      detailedView={detailedView}
+                                      onInfoClick={onModelClick}
+                                      onDeleteClick={onDeleteModel}
+                                      isRunning={runningModels.some(m => m.name === model.name)}
+                                    />
+                                  ))}
                               </div>
                             </div>
 
                             {/* Embedding Models Section */}
-                            <div className="flex-1 space-y-3 mt-6 md:mt-0">
-                              <div className="flex items-center gap-2">
+                            <div className="space-y-3">
+                              <div className="flex items-center gap-2 text-foreground">
                                 <Network className="h-4 w-4" />
-                                <h3 className="text-sm font-medium">
-                                  Embedding Models
-                                </h3>
+                                <h3 className="text-sm font-medium">Embedding Models</h3>
                                 <Badge variant="outline" className="ml-auto">
-                                  {categorizedModels.embeddings.length}
+                                  {models.filter(m => m.name.includes('minilm')).length}
                                 </Badge>
                               </div>
                               <div className="space-y-4">
-                                {categorizedModels.embeddings.map((model) => (
-                                  <ModelCard
-                                    key={model.name}
-                                    model={model}
-                                    modelType="embedding"
-                                    detailedView={detailedView}
-                                    onInfoClick={onModelClick}
-                                    onDeleteClick={onDeleteModel}
-                                    isRunning={runningModels.some(
-                                      (m) => m.name === model.name
-                                    )}
-                                  />
-                                ))}
+                                {models
+                                  .filter(m => m.name.includes('minilm'))
+                                  .map((model) => (
+                                    <ModelCard
+                                      key={model.name}
+                                      model={model}
+                                      modelType="embedding"
+                                      detailedView={detailedView}
+                                      onInfoClick={onModelClick}
+                                      onDeleteClick={onDeleteModel}
+                                      isRunning={runningModels.some(m => m.name === model.name)}
+                                    />
+                                  ))}
                               </div>
                             </div>
                           </div>
