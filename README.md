@@ -52,8 +52,8 @@ https://github.com/user-attachments/assets/55ab78f6-0b32-46ac-a234-940b24f60579
 
 Initialize a new venv (mac):
 ```bash
-python3 -m venv rhunic_env
-source rhunic_env/bin/activate
+python3 -m venv my_env
+source my_env/bin/activate
 ```
 
 Install Python packages:
