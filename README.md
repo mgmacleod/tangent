@@ -23,7 +23,7 @@ Tangent is a canvas for exploring AI conversations, treating each chat branch as
 
 <div align="center">
 
-> The idea is to make your interaction with AI assistants more of an visual/textual/audio exploration rather than a plain chat interface. Think less "chat app" and more "thoughts workbench" where you can experiment freely, revive old threads that still have potential, or dive into tangents.
+> The idea is to make your interaction with AI assistants more of a visual/textual/audio exploration rather than a plain chat interface. Think less "chat app" and more "thoughts workbench" where you can experiment freely, revive old threads that still have potential, or dive into tangents.
 
 https://github.com/user-attachments/assets/69fac816-ebec-4506-af33-2d31bbe9419e
 
