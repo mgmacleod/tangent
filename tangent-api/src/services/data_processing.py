@@ -3,9 +3,8 @@ import os
 import traceback
 import numpy as np
 import pandas as pd
-from collections import defaultdict
-
-from torch import pdist
+from collections import defaultdict 
+from scipy.spatial.distance import pdist, squareform  # Move import here to be explicit
 import umap
 from config import CLAUDE_DATA_DIR, CHATGPT_DATA_DIR
 from typing import List, Tuple
@@ -340,36 +339,33 @@ def process_single_month(chat_titles, month):
 
         embeddings_array = np.array(embeddings)
 
-        # Perform t-SNE
+        # Perform UMAP
         print("Performing UMAP...")
         reducer = umap.UMAP(n_neighbors=15, min_dist=0.1, random_state=42)
-
         embeddings_2d = reducer.fit_transform(embeddings_array)
-        # Calculate distances and perform clustering
-        distances = pdist(embeddings_array, metric="cosine")
+
+        # Calculate distances using scipy
+        distances = pdist(embeddings_array, metric='cosine')
         distance_matrix = squareform(distances)
 
         clusters = perform_clustering(distance_matrix, len(chat_titles))
 
         # Generate topics and metadata
         cluster_metadata = generate_cluster_metadata(
-            clusters, chat_titles, distance_matrix
-        )
+            clusters, chat_titles, distance_matrix)
 
         return {
-            "month_year": month,
-            "points": embeddings_2d.tolist(),
-            "clusters": clusters.tolist(),
-            "titles": chat_titles,
-            "topics": cluster_metadata,
-            "total_conversations": len(chat_titles),
+            'month_year': month,
+            'points': embeddings_2d.tolist(),
+            'clusters': clusters.tolist(),
+            'titles': chat_titles,
+            'topics': cluster_metadata,
+            'total_conversations': len(chat_titles)
         }
 
     except Exception as e:
         print(f"Error processing single month: {str(e)}")
         return None
-
-
 def analyze_branches(messages):
     """
     Enhanced branch detection that specifically looks for edited message branches

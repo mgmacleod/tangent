@@ -5,21 +5,13 @@ import React, {
     useState,
     useRef,
     useCallback,
-    useContext,
 } from "react";
-import { Search, ZoomIn, ZoomOut, RefreshCw } from 'lucide-react';
 import { debounce } from 'lodash';
 
 // Updated component imports with new paths
 import ReflectionDialog from '../feedback/ReflectionDialog';
 import VisualizationPanel from '../visualization/VisualizationPanel';
-import TopicsPanel from '../visualization/TopicsPanel';
 import HoverTooltip from '../feedback/HoverTooltip';
-
-// Updated UI component imports
-import { Card, CardHeader, CardTitle, CardContent } from '../core/card';
-import { Input } from '../core/input';
-
 
 // Utility function for getting colors (moved outside component)
 function getColor(index) {

@@ -40,11 +40,9 @@ const SharedHeader = ({
 }) => {
   return (
     <header
-      className={`${
-        isPanelCollapsed ? "w-screen" : "w-[80vw]"
-      } h-16 bg-background border border-border ${
-        isPanelCollapsed ? "left-0" : "left-[20vw]"
-      } z-[100] flex items-center px-6 transition-all duration-300`}
+      className={`${isPanelCollapsed ? "w-screen" : "w-[80vw]"
+        } h-16 bg-background border border-border ${isPanelCollapsed ? "left-0" : "left-[20vw]"
+        } z-[100] flex items-center px-6 transition-all duration-300`}
     >
       <Button
         variant="outline"
@@ -155,6 +153,7 @@ export const IntegratedDashboard = () => {
   const [isPulling, setIsPulling] = useState(false);
   const [pullStatus, setPullStatus] = useState("");
   const [detailedView, setDetailedView] = useState(false);
+  const [data, setData] = useState(null);
 
   const [nodes, setNodes] = useState([
     {
@@ -173,7 +172,6 @@ export const IntegratedDashboard = () => {
   // Add these state declarations at the top with other states
   const [sortBy, setSortBy] = useState("relevance");
   const [selectedCluster, setSelectedCluster] = useState(null);
-  const [data, setData] = useState(null);
 
   // Add this function with other handlers
   const handleTopicSelect = (clusterId) => {
@@ -373,36 +371,40 @@ export const IntegratedDashboard = () => {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleSave]);
 
+
   useEffect(() => {
     const fetchData = async () => {
       try {
         const response = await fetch("http://127.0.0.1:5001/api/visualization");
         const responseData = await response.json();
-        const chatsWithReflections = new Set(
-          responseData.chats_with_reflections
-        );
+        console.log("API Response:", responseData); // Debug log
 
-        if (responseData.length > 0) {
-          const chartData = [
-            {
-              id: "points",
-              data: responseData.points.map((point, i) => ({
-                x: point[0],
-                y: point[1],
-                cluster: responseData.clusters[i],
-                title: responseData.titles[i],
-                hasReflection: chatsWithReflections.has(responseData.titles[i]),
-              })),
-            },
-          ];
-
-          setData({
-            chartData,
-            topics: responseData.topics,
-          });
+        if (!responseData.points || !responseData.clusters || !responseData.titles) {
+          console.warn("Missing required data fields");
+          return;
         }
+
+        const chatsWithReflections = new Set(responseData.chats_with_reflections || []);
+
+        // Transform data into the format TopicsPanel expects
+        const formattedData = {
+          chartData: [{
+            id: "points",
+            data: responseData.points.map((point, i) => ({
+              x: point[0],
+              y: point[1],
+              cluster: responseData.clusters[i],
+              title: responseData.titles[i],
+              hasReflection: chatsWithReflections.has(responseData.titles[i]),
+            })),
+          }],
+          topics: responseData.topics || {}
+        };
+
+        console.log("Formatted data for TopicsPanel:", formattedData); // Debug log
+        setData(formattedData);
       } catch (error) {
-        console.error("Error fetching data:", error);
+        console.error('Error fetching data:', error);
       }
     };
 
@@ -596,9 +598,8 @@ export const IntegratedDashboard = () => {
 
       {/* Right Content Area */}
       <div
-        className={`${
-          isPanelCollapsed ? "w-full" : "ml-[20vw] w-[80vw]"
-        } flex flex-col transition-all duration-300`}
+        className={`${isPanelCollapsed ? "w-full" : "ml-[20vw] w-[80vw]"
+          } flex flex-col transition-all duration-300`}
       >
         <SharedHeader
           handleRefresh={handleRefresh}

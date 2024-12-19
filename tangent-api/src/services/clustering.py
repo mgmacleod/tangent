@@ -1,5 +1,6 @@
 import os
 import hdbscan
+from scipy.spatial.distance import pdist, squareform
 import numpy as np
 from services.topic_generation import generate_topic_for_cluster
 from sklearn.base import defaultdict

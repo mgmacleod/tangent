@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 // Core UI components
 import { Card, CardHeader, CardTitle } from '../core/card';
 import { ScrollArea } from '../core/scroll-area';
@@ -65,7 +65,7 @@ const TopicCard = ({
               >
                 {topicData.topic}
               </button>
-              
+
               {isActive && conversations.length > 0 && (
                 <button
                   onClick={(e) => {
@@ -201,6 +201,13 @@ const TopicsPanel = ({
     return counts;
   }, [data]);
 
+  // In TopicsPanel, add this near the top of the component:
+  useEffect(() => {
+    console.log("TopicsPanel received data:", data);
+    console.log("Topics:", data?.topics);
+    console.log("ChartData:", data?.chartData);
+  }, [data]);
+
   const filteredAndSortedTopics = useMemo(() => {
     if (!data?.topics) return [];
 
@@ -332,7 +339,11 @@ const TopicsPanel = ({
             ))
           ) : (
             <div className="p-8 text-center text-muted-foreground">
-              No topics match your criteria
+              {data?.topics ? (
+                'No topics match your criteria'
+              ) : (
+                'No topic data available. Please ensure data is loaded correctly.'
+              )}
             </div>
           )}
         </div>
