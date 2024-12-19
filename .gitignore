@@ -18,3 +18,5 @@ simplified-ui/electron/
 simplified-ui/src/config.js
 simplified-ui/webpack.config.js
 utils/voice_assistant.py
+
+**/__pycache__/**

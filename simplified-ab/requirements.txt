@@ -5,4 +5,3 @@ scikit-learn
 umap-learn
 hdbscan
 requests
-js-yaml
