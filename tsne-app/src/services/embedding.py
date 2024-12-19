@@ -1,8 +1,8 @@
 import requests
 import os
-import json
 
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "all-minilm")
+
 
 def get_embeddings(texts):
     """Get embeddings from the embedding API"""

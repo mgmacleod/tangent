@@ -1,8 +1,8 @@
 import requests
-import json
 import os
 
 GENERATION_MODEL = os.getenv("GENERATION_MODEL", "qwen2.5-coder:7b")
+
 
 def generate_topic_for_cluster(titles):
     """Generate a topic label for a cluster of titles"""
@@ -34,9 +34,11 @@ Provide ONLY the topic label, nothing else. Examples:
         )
 
         if response.status_code == 200:
-            return response.json().get("data", "Error")
+            topic = response.json().get("response", "").strip()
+            return topic if topic else "Miscellaneous"
         else:
-            return "Error"
+            print(f"Error: Received status code {response.status_code}")
+            return "Error generating topic"
     except Exception as e:
         print(f"Error generating topic: {str(e)}")
         return "Error"

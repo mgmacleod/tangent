@@ -1,8 +1,8 @@
 import requests
-import json
 import os
 
 GENERATION_MODEL = os.getenv("GENERATION_MODEL", "qwen2.5-coder:7b")
+
 
 def generate_reflection_for_cluster(struggle_texts):
     """Generate a reflection for a cluster based on struggle texts"""
@@ -33,9 +33,11 @@ Provide ONLY the reflection."""
         )
 
         if response.status_code == 200:
-            return response.json().get("reflection", "")
+            reflection = response.json().get("response", "").strip()
+            return reflection if reflection else "No reflection generated"
         else:
+            print(f"Error: Received status code {response.status_code}")
             return "Error generating reflection"
     except Exception as e:
         print(f"Error generating reflection: {str(e)}")
-        return ""
+        return "Error"

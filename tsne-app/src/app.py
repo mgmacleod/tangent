@@ -1,20 +1,33 @@
-from flask import Flask
+from flask import Flask, request
 from flask_cors import CORS
 from routes.api import api_bp
-from routes.chats import chats_bp
-from routes.messages import messages_bp
-from routes.states import states_bp
-from routes.topics import topics_bp
-from config import BASE_DATA_DIR
+from utils import ensure_directories
+from services.background_tasks import start_background_tasks
 
 app = Flask(__name__)
 CORS(app)
 
-app.register_blueprint(api_bp, url_prefix='/api')
-app.register_blueprint(chats_bp, url_prefix='/api/chats')
-app.register_blueprint(messages_bp, url_prefix='/api/messages')
-app.register_blueprint(states_bp, url_prefix='/api/states')
-app.register_blueprint(topics_bp, url_prefix='/api/topics')
+app.register_blueprint(api_bp, url_prefix="/api")
+
+
+@app.before_request
+def before_request():
+    print("Incoming request:")
+    print(f"Path: {request.path}")
+    print(f"Method: {request.method}")
+    print(f"Headers: {dict(request.headers)}")
+
+
+@app.after_request
+def after_request(response):
+    print("Outgoing response:")
+    print(f"Status: {response.status_code}")
+    print(f"Headers: {dict(response.headers)}")
+    return response
+
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5001)
+    ensure_directories()
+    start_background_tasks()
+
+    app.run(debug=False, port=5001, use_reloader=False)

@@ -1,7 +1,7 @@
 import time
-import queue
 from typing import Optional
 from services.background_processor import BackgroundProcessor
+
 
 class TaskManager:
     def __init__(self):
@@ -10,7 +10,7 @@ class TaskManager:
     def start_task(self, file_path: str) -> str:
         task_id = str(time.time())
         try:
-            task = self.background_processor.start_task(file_path)
+            self.background_processor.start_task(file_path)
             return task_id
         except Exception as e:
             print(f"Error starting task: {str(e)}")
@@ -20,4 +20,4 @@ class TaskManager:
         return self.background_processor.get_task_status(task_id)
 
     def process_queue(self):
-        self.background_processor.process_queue()
+        self.background_processor._process_queue()

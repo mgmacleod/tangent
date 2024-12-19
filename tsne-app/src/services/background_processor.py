@@ -4,9 +4,12 @@ import time
 import json
 import os
 from typing import Dict, Optional, Tuple
+
+import pandas as pd
 from models import ProcessingTask
-from config import CLAUDE_DATA_DIR, CHATGPT_DATA_DIR
 import traceback
+from config import CHATGPT_DATA_DIR, CLAUDE_DATA_DIR
+from services.data_processing import process_chatgpt_messages, process_claude_messages, save_state, save_latest_state, process_data_by_month
 
 
 class BackgroundProcessor:
@@ -33,52 +36,82 @@ class BackgroundProcessor:
             self.task_queue.put((task_id, task))
             return task_id
         except Exception as e:
-            self.tasks[task_id] = ProcessingTask(
-                file_path=file_path, status="error", progress=0.0, error=str(e)
-            )
-            return task_id
+            raise Exception(f"Error starting task: {str(e)}")
 
     def get_task_status(self, task_id: str) -> Optional[ProcessingTask]:
         return self.tasks.get(task_id)
 
     def _process_queue(self):
         while True:
-            task_id, task = self.task_queue.get()
-            if task_id is None:
-                break
             try:
-                self.tasks[task_id].status = "processing"
-                # Process the task here
-                self._process_task(task)
-                self.tasks[task_id].status = "completed"
-                self.tasks[task_id].completed = True
+                task_id, task = self.task_queue.get()
+                if task_id not in self.tasks:
+                    continue
+
+                task.status = "processing"
+                try:
+                    # Load and process the data based on chat type
+                    with open(task.file_path, "r") as f:
+                        data = json.load(f)
+
+                    # Process messages based on chat type
+                    messages = (
+                        process_chatgpt_messages(data)
+                        if task.chat_type == "chatgpt"
+                        else process_claude_messages(data)
+                    )
+
+                    # Create DataFrame and process month by month
+                    df = pd.DataFrame(messages)
+                    df["month_year"] = df["timestamp"].dt.strftime("%Y-%m")
+
+                    total_months = len(df["month_year"].unique())
+                    current_month = 0
+
+                    for update in process_data_by_month(df):
+                        current_month += 1
+                        task.progress = (current_month / total_months) * 100
+
+                        # Save state and files
+                        save_state(update, update["month_year"], task.data_dir)
+
+                        # Save monthly messages
+                        month_messages = df[df["month_year"] <= update["month_year"]]
+                        messages_json = month_messages.to_json(
+                            orient="records", date_format="iso"
+                        )
+
+                        # Save to appropriate directory
+                        states_dir = os.path.join(task.data_dir, "states")
+                        os.makedirs(states_dir, exist_ok=True)
+
+                        with open(
+                            os.path.join(
+                                states_dir, f'messages_{update["month_year"]}.json'
+                            ),
+                            "w",
+                        ) as f:
+                            f.write(messages_json)
+
+                        # Update latest state files
+                        save_latest_state(update, task.data_dir)
+
+                    task.completed = True
+                    task.status = "completed"
+
+                except Exception as e:
+                    task.error = str(e)
+                    task.status = "failed"
+                    print(f"Processing error: {str(e)}")
+                    traceback.print_exc()
+
             except Exception as e:
-                self.tasks[task_id].status = "error"
-                self.tasks[task_id].error = str(e)
-                print(f"Error processing task {task_id}: {str(e)}")
+                print(f"Error in processing thread: {str(e)}")
                 traceback.print_exc()
+                continue
+
             finally:
                 self.task_queue.task_done()
-
-    def _process_task(self, task: ProcessingTask):
-        # Example processing logic
-        try:
-            with open(task.file_path, "r") as f:
-                data = json.load(f)
-            # Simulate processing
-            time.sleep(2)
-            # Save processed data
-            processed_data_dir = os.path.join(task.data_dir, "processed")
-            os.makedirs(processed_data_dir, exist_ok=True)
-            processed_file_path = os.path.join(
-                processed_data_dir, os.path.basename(task.file_path)
-            )
-            with open(processed_file_path, "w") as f:
-                json.dump(data, f)
-            task.progress = 100.0
-        except Exception as e:
-            raise Exception(f"Error processing task: {str(e)}")
-
 
 def detect_chat_type(file_path: str) -> Tuple[str, str]:
     """
@@ -94,8 +127,12 @@ def detect_chat_type(file_path: str) -> Tuple[str, str]:
 
             # ChatGPT format detection (has 'mapping' field)
             if isinstance(first_item, dict) and "mapping" in first_item:
+                os.makedirs(CHATGPT_DATA_DIR, exist_ok=True)
                 return "chatgpt", CHATGPT_DATA_DIR
+
+            # Claude format detection (has 'chat_messages' field)
             elif isinstance(first_item, dict) and "chat_messages" in first_item:
+                os.makedirs(CLAUDE_DATA_DIR, exist_ok=True)
                 return "claude", CLAUDE_DATA_DIR
 
         raise ValueError("Unknown chat format")
