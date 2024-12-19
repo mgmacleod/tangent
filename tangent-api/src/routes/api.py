@@ -141,7 +141,7 @@ def get_visualization_data():
     try:
         data = load_visualization_data(data_dir)
         if not data["points"] or not data["clusters"] or not data["titles"]:
-            return jsonify({"error": "No visualization data found"}), 404
+            return jsonify([]), 200
 
         return jsonify(
             {
