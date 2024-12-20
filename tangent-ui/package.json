@@ -1,7 +1,16 @@
 {
-  "name": "simplified-ui",
-  "version": "0.1.0",
-  "private": true,
+  "browserslist": {
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ],
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ]
+  },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.2",
     "@radix-ui/react-dropdown-menu": "^2.1.2",
@@ -35,54 +44,6 @@
     "three": "^0.171.0",
     "web-vitals": "^2.1.4"
   },
-  "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject",
-    "electron:dev": "concurrently \"cross-env BROWSER=none npm start\" \"wait-on http://localhost:3000 && electron .\"",
-    "package": "npm run build && electron-builder --publish never",
-    "package:all": "npm run build && electron-builder -mwl",
-    "package:mac": "npm run build && electron-builder --mac",
-    "package:win": "npm run build && electron-builder --win",
-    "package:linux": "npm run build && electron-builder --linux"
-  },
-  "main": "./electron/main.js",
-  "homepage": "./",
-  "build": {
-    "appId": "com.tangent.app",
-    "productName": "Tangent",
-    "asar": true,
-    "asarUnpack": [
-      "python/**/*"
-    ],
-    "afterPack": "./electron/scripts/after-pack.js",
-    "files": [
-      "build/**/*",
-      "electron/**/*"
-    ],
-    "directories": {
-      "buildResources": "assets",
-      "output": "dist"
-    },
-    "extraResources": [
-      {
-        "from": "../simplified-ab",
-        "to": "./app/simplified-ab",
-        "filter": [
-          "**/*",
-          "!__pycache__"
-        ]
-      }
-    ],
-    "mac": {
-      "target": [
-        "dmg"
-      ],
-      "icon": "assets/icon.icns",
-      "category": "public.app-category.developer-tools"
-    }
-  },
   "devDependencies": {
     "@babel/plugin-proposal-private-property-in-object": "^7.21.11",
     "autoprefixer": "^10.4.20",
@@ -91,8 +52,6 @@
     "electron": "^33.2.1",
     "electron-builder": "^25.1.8",
     "electron-is-dev": "^3.0.1",
-    "electron-reload": "^1.5.0",
-    "electron-updater": "^6.1.8",
     "javascript-obfuscator": "^4.1.0",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.15",
@@ -100,16 +59,17 @@
     "wait-on": "^8.0.1",
     "webpack-obfuscator": "^3.5.1"
   },
-  "browserslist": {
-    "production": [
-      ">0.2%",
-      "not dead",
-      "not op_mini all"
-    ],
-    "development": [
-      "last 1 chrome version",
-      "last 1 firefox version",
-      "last 1 safari version"
-    ]
-  }
+  "homepage": "./",
+  "name": "tangent-ui",
+  "private": true,
+  "scripts": {
+    "build": "react-scripts build",
+    "eject": "react-scripts eject",
+    "start": "react-scripts start",
+    "test": "react-scripts test",
+    "electron-start": "concurrently \"cross-env BROWSER=none npm run start\" \"wait-on http://localhost:3000 && electron .\"",
+    "electron-build": "npm run build && electron ."
+  },
+  "main": "main.js",
+  "version": "0.1.0"
 }
