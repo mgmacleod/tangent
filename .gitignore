@@ -22,3 +22,4 @@ utils/voice_assistant.py
 **/__pycache__/**
 yarn.lock
 npm.lock
+.vscode/
