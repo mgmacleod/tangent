@@ -29,7 +29,6 @@ export function ReactPreviewComponent({ code }) {
   const processedCode = code.trim();
   const [key, setKey] = useState(0);
 
-  // Reset component when code changes
   useEffect(() => {
     setError(null);
     setKey(prev => prev + 1);
@@ -78,15 +77,23 @@ root.render(
           dependencies: {
             "react": "^18.0.0",
             "react-dom": "^18.0.0",
-            "uuid": "^9.0.0"
+            "uuid": "^9.0.0",
+            // Added Three.js and related libraries
+            "three": "^0.160.0",
+            "@react-three/fiber": "^8.15.0",
+            "@react-three/drei": "^9.92.0",
+            "@types/three": "^0.160.0",
+            // Add any other libraries you need here
+            "@react-three/postprocessing": "^2.15.0",
+            "leva": "^0.9.35"  // Optional: for GUI controls
           }
         }}
         options={{
           autorun: true,
           recompileMode: "immediate",
-          bundlerTimeoutInterval: 30000,
+          bundlerTimeoutInterval: 60000, // Increased timeout for larger dependencies
           externalResources: ["https://cdn.tailwindcss.com"],
-          showErrorOverlay: false, // Disable Sandpack's default error overlay
+          showErrorOverlay: false,
         }}
       >
         <SandpackLayout>
