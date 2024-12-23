@@ -20,6 +20,7 @@ from shared_data import models_data
 api_bp = Blueprint("api", __name__)
 background_processor = BackgroundProcessor()
 
+
 @api_bp.route("/process", methods=["POST"])
 def process_data():
     try:
@@ -574,5 +575,6 @@ def generate_topic():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     
+
 def register_routes(app):
     app.register_blueprint(api_bp, url_prefix="/api")

@@ -9,8 +9,8 @@ const ChatContainer = ({ children, className }) => {
 
   const sizeStyles = {
     collapsed: 'w-[240px] h-[30px] overflow-hidden',
-    normal: 'w-[400px] h-[700px]',
-    large: 'w-[1400px] h-[700px]',
+    normal: 'w-[400px] h-[800px]',
+    large: 'w-[1400px] h-[800px]',
   };
 
   useEffect(() => {
