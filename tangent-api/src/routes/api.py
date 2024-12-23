@@ -1,6 +1,5 @@
 from datetime import datetime
 import json
-import requests
 import os
 from pathlib import Path
 import re
@@ -574,7 +573,7 @@ def generate_topic():
         return jsonify({"topic": topic})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-    
+
 
 def register_routes(app):
     app.register_blueprint(api_bp, url_prefix="/api")
