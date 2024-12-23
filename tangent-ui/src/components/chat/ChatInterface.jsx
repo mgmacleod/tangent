@@ -115,11 +115,11 @@ const ChatInterface = ({
     onInputChange({ target: { value: transcript } });
     setIsTranscribing(false);
     // Auto send the transcribed message
-    if (transcript.trim()) {
-      onSend();
+    if (transcript.trim() && activeNode?.id) {
+      onSend(activeNode.id, transcript);  // Pass both nodeId and transcript
     }
   };
-
+  
   const handleTranscriptionStart = () => {
     setIsTranscribing(true);
     onInputChange({ target: { value: '' } });
@@ -129,7 +129,7 @@ const ChatInterface = ({
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       if (input.trim() && !isLoading && !isTranscribing) {
-        onSend();
+        onSend(activeNode.id, input);  // Pass both nodeId and input
       }
     }
   };
@@ -267,7 +267,7 @@ const ChatInterface = ({
           <button
             onClick={() => {
               if (input.trim() && !isLoading && !isTranscribing) {
-                onSend();
+                onSend(activeNode.id, input);  // Pass both nodeId and input
               }
             }}
             disabled={!input.trim() || isLoading || isTranscribing}

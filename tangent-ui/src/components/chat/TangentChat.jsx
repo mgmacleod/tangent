@@ -75,7 +75,14 @@ const systemPrompt = `You are a helpful AI assistant. When responding:
    - Provide 4-5 sentences
    - Balance detail and brevity
 
-4. Always adapt your response length based on explicit or implicit length cues in the user's question`;
+4. For React-related tasks:
+   - Focus on functional components and hooks (e.g., \`useState\`, \`useEffect\`).
+   - Assume the user works with an environment that supports modern React (version 18 or higher) and includes support for live previews and error handling.
+   - Components should be styled using a lightweight, utility-first CSS framework (such as Tailwind CSS) unless otherwise specified.
+   - Responses should account for ease of testing and previewing components, ensuring a smooth developer experience.
+
+5. Always adapt your response length and content style based on explicit or implicit length cues in the user's question.`;
+
 
 
 const TangentChat = ({
@@ -237,8 +244,17 @@ const TangentChat = ({
         const response = await fetch('http://localhost:11434/api/tags');
         const data = await response.json();
         setModels(data.models);
-        if (data.models.length > 0) {
-          setSelectedModel(data.models[0].name);
+
+        // Check if a model is already stored in localStorage
+        const savedModel = localStorage.getItem('selectedModel');
+        if (savedModel && data.models.some(model => model.name === savedModel)) {
+          // Use the saved model if it exists in the fetched list
+          setSelectedModel(savedModel);
+        } else if (data.models.length > 0) {
+          // Otherwise, set the last model in the list as default
+          const lastModel = data.models[data.models.length - 1].name;
+          setSelectedModel(lastModel);
+          localStorage.setItem('selectedModel', lastModel);
         }
       } catch (error) {
         console.error('Error fetching models:', error);
@@ -314,60 +330,93 @@ const TangentChat = ({
     setInputValue(newValue);
   };
 
+  const createPreviewBranch = ({ parentId, code, language, position, messageIndex }) => {
+    return {
+      id: Date.now() + Math.random(), // Generate unique ID
+      type: 'preview',
+      title: `${language.toUpperCase()} Preview`,
+      parentId,
+      parentMessageIndex: messageIndex,
+      x: position.x,
+      y: position.y,
+      messages: [{
+        role: 'assistant',
+        content: code,
+        language,
+        isPreview: true,
+        timestamp: new Date().toISOString()
+      }]
+    };
+  };
+
+
   const handleSendMessage = async (nodeId, message) => {
+    // Early validation
+    if (!message || typeof message !== 'string') {
+      console.error('Invalid message:', message);
+      return;
+    }
     if (!message.trim()) return;
 
     const currentNode = nodes.find(n => n.id === nodeId);
-    if (!currentNode) return;
+    if (!currentNode) {
+      console.error('Node not found:', nodeId);
+      return;
+    }
 
-    // Add user message immediately
-    const newMessage = { role: 'user', content: message };
-    const updatedMessages = [...currentNode.messages, newMessage];
-
-    // Update nodes with user message
+    // 1) Add user message
+    const newMessage = {
+      role: 'user',
+      content: message,
+      timestamp: new Date().toISOString(),
+      context: determineMessageContext(message),
+    };
     setNodes(prevNodes => prevNodes.map(node =>
       node.id === nodeId
         ? {
           ...node,
-          messages: updatedMessages,
+          messages: [...node.messages, newMessage],
           contextMessages: node.type === 'branch'
             ? [...(node.contextMessages || []), newMessage]
-            : undefined
+            : undefined,
         }
         : node
     ));
 
-    // Track this conversation as active
+    // 2) Mark the node as actively receiving a response
     setActiveResponses(prev => new Map(prev).set(nodeId, true));
 
     try {
+      // Build conversation context
       const conversationContext = currentNode.type === 'branch'
         ? [...(currentNode.contextMessages || []), newMessage]
-        : updatedMessages;
+        : [...currentNode.messages];
 
+      // Format conversation for the API
+      const formattedConversation = conversationContext
+        .map(msg => `${msg.role === 'user' ? 'Human' : 'Assistant'}: ${msg.content}`)
+        .join('\n');
+
+      // 3) Send request
       const response = await fetch('http://localhost:11434/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model: selectedModel,
-          prompt: conversationContext.map(msg =>
-            `${msg.role === 'user' ? 'Human' : 'Assistant'}: ${msg.content}`
-          ).join('\n') + '\n\nHuman: ' + message + '\n\nAssistant:',
+          prompt: formattedConversation + '\n\nHuman: ' + message + '\n\nAssistant:',
           stream: true,
           system: currentNode.systemPrompt || systemPrompt,
           options: {
-            temperature: temperature,
+            temperature: temperature || 0.7,
             num_ctx: 8192,
+            num_predict: 2048,
             top_p: 0.9,
             top_k: 20,
-            typical_p: 0.7,
-            mirostat: 1,
-            mirostat_tau: 0.8,
-            mirostat_eta: 0.6,
-          }
-        })
+          },
+        }),
       });
 
+      // 4) Handle streaming response
       let accumulatedResponse = '';
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
@@ -381,62 +430,120 @@ const TangentChat = ({
 
         for (const line of lines) {
           if (!line.trim()) continue;
-
           try {
             const data = JSON.parse(line);
-            if (data.response !== undefined) {
-              accumulatedResponse += data.response;
+            // Check for both response and message properties
+            const responseText = data.response || (data.message && data.message.content);
 
-              // Update streaming content for this specific node
+            if (responseText) {
+              accumulatedResponse += responseText;
+              // Update streaming content
               setNodes(prevNodes => prevNodes.map(node =>
                 node.id === nodeId
                   ? { ...node, streamingContent: accumulatedResponse }
                   : node
               ));
             }
-          } catch (error) {
-            console.error('Error parsing JSON line:', error);
+          } catch (err) {
+            console.error('Error parsing JSON line:', err);
           }
         }
       }
 
-      // Final update with complete response
+      // 5) Final assistant message
+      const finalMessage = {
+        role: 'assistant',
+        content: accumulatedResponse || 'No response received',  // Fallback content
+        timestamp: new Date().toISOString(),
+      };
+
+      // 6) Insert final message into the main thread
       setNodes(prevNodes => prevNodes.map(node => {
         if (node.id !== nodeId) return node;
-
-        const finalMessage = {
-          role: 'assistant',
-          content: accumulatedResponse,
-          continuationCount: 0
-        };
-
         return {
           ...node,
-          messages: [...updatedMessages, finalMessage],
+          messages: [
+            ...node.messages.filter(m => m.role !== 'assistant' || !m.isStreaming),
+            finalMessage,
+          ],
           contextMessages: node.type === 'branch'
             ? [...(node.contextMessages || []), finalMessage]
             : undefined,
-          streamingContent: null
+          streamingContent: null,
         };
       }));
 
+      const codeBlockRegex = /```(python)([\s\S]*?)```/g;
+      const matches = [...accumulatedResponse.matchAll(codeBlockRegex)];
+
+      if (matches.length > 0) {
+        const previewBranches = matches.map((match, index) => {
+          const [, language, code] = match;
+          const cleanCode = code.trim();
+
+          // Position new node near the parent
+          const position = {
+            x: currentNode.x + 400,
+            y: currentNode.y + index * 300,
+          };
+
+          // Create preview branch
+          return createPreviewBranch({
+            parentId: nodeId,
+            code: cleanCode,
+            language,
+            position,
+            messageIndex: currentNode.messages.length + 1,
+          });
+        });
+
+        // Add preview branches to nodes
+        setNodes(prev => [...prev, ...previewBranches]);
+      }
     } catch (error) {
       console.error('Error in handleSendMessage:', error);
-
-      // Update nodes to remove streaming state in case of error
+      // Clear streaming state on error
       setNodes(prevNodes => prevNodes.map(node =>
-        node.id === nodeId
-          ? { ...node, streamingContent: null }
-          : node
+        node.id === nodeId ? { ...node, streamingContent: null } : node
       ));
     } finally {
-      // Remove this conversation from active responses
+      // Clear active response
       setActiveResponses(prev => {
         const next = new Map(prev);
         next.delete(nodeId);
         return next;
       });
     }
+  };
+
+
+  const determineMessageContext = (content) => {
+    const pythonIndicators = ['python', 'def ', 'import ', 'print('];
+    const reactIndicators = ['react', 'jsx', 'component', 'useState'];
+
+    if (pythonIndicators.some(i => content.toLowerCase().includes(i))) return 'python';
+    if (reactIndicators.some(i => content.toLowerCase().includes(i))) return 'react';
+    return 'text';
+  };
+
+  const wrapCodeInComponent = (code) => {
+    if (!code.includes('export default') && !code.includes('function')) {
+      return `
+import React, { useState } from 'react';
+
+export default function PreviewComponent() {
+  ${code}
+  return (
+    <div className="p-4">
+      <button onClick={handleClick} className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
+        Click me!
+      </button>
+      <p className="mt-2">Count: {count}</p>
+    </div>
+  );
+}`;
+    }
+    return code;
   };
 
   const handleFloatingInputSend = (message) => {
@@ -480,7 +587,7 @@ const TangentChat = ({
     return context;
   };
 
-  const handleCreateBranch = async (parentNodeId, messageIndex, position = null) => {
+  const onCreateBranch = async (parentNodeId, messageIndex, position = null) => {
     const parentNode = nodes.find(n => n.id === parentNodeId);
     if (!parentNode) return;
 
@@ -608,6 +715,10 @@ const TangentChat = ({
 
 
   const handleWheel = useCallback((e) => {
+    if (e.target.closest('.scrollable')) {
+      // Ignore scrolling events if the target is inside a scrollable container
+      return;
+    }
     e.preventDefault();
 
     const { scale: currentScale, translate: currentTranslate } = transformRef.current;
@@ -649,25 +760,21 @@ const TangentChat = ({
 
   const calculateBranchPosition = (parentNode, messageIndex, existingNodes) => {
     const BASE_SPACING_X = 300; // Horizontal space between branches
-    const BASE_SPACING_Y = 120; // Vertical space between sibling branches
+    const BASE_SPACING_Y = 200; // Increased vertical space for better visibility
     const MESSAGE_HEIGHT = 120; // Height per message
 
-    // Calculate base position relative to parent message
     const baseX = parentNode.x + BASE_SPACING_X;
     const baseY = parentNode.y + (messageIndex * MESSAGE_HEIGHT);
 
-    // Get existing branches at this message index
     const siblingBranches = existingNodes.filter(node =>
-      node.parentId === parentNode.id &&
-      node.parentMessageIndex === messageIndex
+      node.parentId === parentNode.id && node.parentMessageIndex === messageIndex
     );
 
-    // Stack new branch below existing siblings
     const verticalOffset = siblingBranches.length * BASE_SPACING_Y;
 
     return {
       x: baseX,
-      y: baseY + verticalOffset
+      y: baseY + verticalOffset,
     };
   };
 
@@ -867,39 +974,30 @@ const TangentChat = ({
 
 
   const getConnectionPoints = (sourceNode, targetNode, expandedNodes) => {
+    const NODE_WIDTH = 400; // Adjust based on your node dimensions
+    const NODE_HEIGHT = 80; // Header height or height of non-expanded node
 
     const isSourceExpanded = expandedNodes.has(sourceNode.id);
     const messageIndex = targetNode.parentMessageIndex || 0;
 
-    // Calculate vertical offset based on message position
-    const messageOffset = isSourceExpanded
-      ? NODE_HEADER_HEIGHT + (messageIndex * (120 + MESSAGE_PADDING))
-      : NODE_HEADER_HEIGHT;
+    // Calculate source point
+    const sourceY = isSourceExpanded
+      ? sourceNode.y + NODE_HEIGHT + (messageIndex * 120) // Adjust for expanded node
+      : sourceNode.y + NODE_HEIGHT / 2; // Center for collapsed node
+    const sourceX = sourceNode.x + NODE_WIDTH; // Right edge of the source node
 
-    // Determine if target is to the left or right of source
-    const isTargetOnLeft = targetNode.x < sourceNode.x;
-
-    // Calculate horizontal connection points with proper node width
-    const sourceX = isTargetOnLeft
-      ? sourceNode.x // Left edge of source
-      : sourceNode.x + NODE_WIDTH; // Right edge of source
-
-    const targetX = isTargetOnLeft
-      ? targetNode.x + NODE_WIDTH // Right edge of target
-      : targetNode.x; // Left edge of target
-
-    // Calculate vertical positions with header height consideration
-    const sourceY = sourceNode.y + messageOffset;
-    const targetY = targetNode.y + (NODE_HEADER_HEIGHT / 2); // Center of target node header
+    // Calculate target point
+    const targetY = targetNode.y + NODE_HEIGHT / 2; // Center of the target node
+    const targetX = targetNode.x; // Left edge of the target node
 
     return {
       x1: sourceX,
       y1: sourceY,
       x2: targetX,
-      y2: targetY,
-      isTargetOnLeft
+      y2: targetY
     };
   };
+
 
   // Calculate the bounding box of all nodes
   const calculateNodesBounds = (nodes) => {
@@ -966,23 +1064,19 @@ const TangentChat = ({
   };
 
   const getBezierPath = (points) => {
-    const { x1, y1, x2, y2, isTargetOnLeft } = points;
+    const { x1, y1, x2, y2 } = points;
 
-    // Calculate the horizontal distance between the points
-    const dx = x2 - x1;
+    const controlOffset = Math.abs(x2 - x1) * 0.4; // Adjust control point for smoother curve
 
-    // Adjust control points based on relative positions
-    const distance = Math.abs(dx);
-    const offset = Math.min(distance * 0.5, 200);
-
-    // Create control points that produce a more natural curve
-    const cp1x = x1 + (isTargetOnLeft ? -offset : offset);
+    const cp1x = x1 + controlOffset; // Control point 1
     const cp1y = y1;
-    const cp2x = x2 + (isTargetOnLeft ? offset : -offset);
+    const cp2x = x2 - controlOffset; // Control point 2
     const cp2y = y2;
 
     return `M ${x1},${y1} C ${cp1x},${cp1y} ${cp2x},${cp2y} ${x2},${y2}`;
   };
+
+
 
   const Connection = ({ sourceNode, targetNode, expandedNodes }) => {
     if (!sourceNode || !targetNode) return null;
@@ -1485,7 +1579,7 @@ const TangentChat = ({
               onSelect={() => handleSelect(node.id)}
               onDelete={() => handleDeleteNode(node.id)}
               onDragStart={handleDragStart}
-              onCreateBranch={handleCreateBranch}
+              onCreateBranch={onCreateBranch}
               selectedModel={selectedModel}
               currentMessageIndex={node.id === selectedNode ? focusedMessageIndex : null}
               branchId={node.branchId}
