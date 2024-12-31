@@ -1,7 +1,5 @@
 <div align="center">
 
- ->->-> [<img src="https://assets-global.website-files.com/6257adef93867e50d84d30e2/636e0a6ca814282eca7172c6_icon_clyde_white_RGB.svg" width="20px" alt="Discord">](https://discord.gg/qHDavVmafF) <-<-<-
-
 <img src="https://github.com/user-attachments/assets/cd8a656e-f643-439c-a64a-694d521c43fe" alt="tangent" style="border-radius: 10px">
 
 ## What is this?
@@ -183,4 +181,17 @@ The backend exposes these main endpoints:
 
 Feel free to contribute! Just submit a PR or open an issue for any cool features or fixes you've got in mind.
 
-Licensed under Apache 2.0 - see the LICENSE file for the full details.
+<div align="center">
+ 
+> Licensed under Apache 2.0 - see the LICENSE file for the full details.
+
+</div>
+
+---
+
+<div align="center">
+⬇️ - JOIN OUR DISCORD SERVER - ⬇️
+ 
+# [<img src="https://assets-global.website-files.com/6257adef93867e50d84d30e2/636e0a6ca814282eca7172c6_icon_clyde_white_RGB.svg" width="20px" alt="Discord">](https://discord.gg/qHDavVmafF)
+ 
+</div>
