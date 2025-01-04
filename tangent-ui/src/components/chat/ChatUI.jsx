@@ -28,9 +28,13 @@ const ChatUI = ({ topic, model, onBack }) => {
         setLoading(true);
 
         try {
-            const response = await fetch("http://localhost:11434/api/chat", {
+            const ollamaUrl = process.env.REACT_APP_OLLAMA_URL || 'http://localhost:11434';
+            const response = await fetch(`${ollamaUrl}/api/chat`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: { 
+                    "Content-Type": "application/json",
+                    "Access-Control-Allow-Origin": "*"
+                },
                 body: JSON.stringify({
                     model: model || "qwen2.5-coder:7b",
                     messages: newMessages,

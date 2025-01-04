@@ -86,7 +86,8 @@ const ExploreTab = () => {
     };
 
     const sendToWhisperServer = async (audioBlob) => {
-        const url = `http://127.0.0.1:8080/inference`;
+        const inferenceUrl = process.env.REACT_APP_INFERENCE_URL || 'http://localhost:8080';
+        const url = `${inferenceUrl}/inference`;
         try {
             // Decode the WebM audio data
             const arrayBuffer = await audioBlob.arrayBuffer();
@@ -207,8 +208,11 @@ const ExploreTab = () => {
         setIsChatting(true);
     };
 
-    const url_reflect = `http://127.0.0.1:5001/api/get-reflection`;
-    const url_chat = `http://localhost:11434/api/chat`;
+    const apiUrl = process.env.REACT_APP_API_URL || 'http://127.0.0.1:5001';
+    const ollamaUrl = process.env.REACT_APP_OLLAMA_URL || 'http://localhost:11434';
+
+    const url_reflect = `${apiUrl}/api/get-reflection`;
+    const url_chat = `${ollamaUrl}/api/chat`;
 
     const processTranscript = async (text) => {
         try {

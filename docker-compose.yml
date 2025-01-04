@@ -1,4 +1,4 @@
-version: '3.8'
+---
 
 services:
   backend:
@@ -21,11 +21,16 @@ services:
     build:
       context: ./tangent-ui
       dockerfile: Dockerfile
+      args:
+        - REACT_APP_API_URL=${REACT_APP_API_URL:-http://192.168.0.110:5001}
+        - REACT_APP_OLLAMA_URL=${REACT_APP_OLLAMA_URL:-http://192.168.0.114:11434}
+        - REACT_APP_INFERENCE_URL=${REACT_APP_INFERENCE_URL:-http://192.168.0.110:8080}
     ports:
       - "3333:3000"
     environment:
       - REACT_APP_API_URL=${REACT_APP_API_URL:-http://192.168.0.110:5001}
       - REACT_APP_OLLAMA_URL=${REACT_APP_OLLAMA_URL:-http://192.168.0.114:11434}
+      - REACT_APP_INFERENCE_URL=${REACT_APP_INFERENCE_URL:-http://192.168.0.110:8080}
     depends_on:
       - backend
     networks:

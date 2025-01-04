@@ -104,8 +104,9 @@ const MainDashboard = ({ onConversationSelect }) => {  // Add this prop
     const fetchMessages = async (title, chatType) => {
         const encodedTitle = encodeURIComponent(title);
         try {
+            const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001';
             const response = await axios.get(
-                `http://127.0.0.1:5001/api/messages/${encodedTitle}?type=${chatType}`,
+                `${apiUrl}/api/messages/${encodedTitle}?type=${chatType}`,
                 {
                     validateStatus: function (status) {
                         return status < 500; // Handle 404s without throwing
@@ -132,7 +133,8 @@ const MainDashboard = ({ onConversationSelect }) => {  // Add this prop
             }
 
             try {
-                const response = await fetch(`http://127.0.0.1:5001/api/visualization?type=${chatType}`);
+                const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001';
+                const response = await fetch(`${apiUrl}/api/visualization?type=${chatType}`);
 
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
@@ -167,7 +169,8 @@ const MainDashboard = ({ onConversationSelect }) => {  // Add this prop
         fetchData();
     }, [chatType]);
 
-    const url_visualization = "http://127.0.0.1:5001/api/visualization";
+    const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001';
+    const url_visualization = `${apiUrl}/api/visualization`;
 
     useEffect(() => {
         const handleEsc = (e) => {
@@ -220,7 +223,8 @@ const MainDashboard = ({ onConversationSelect }) => {  // Add this prop
 
     const handleRefresh = async () => {
         setIsLoading(true);
-        const url = `http://127.0.0.1:5001/api/visualization?type=${chatType}`;
+        const apiUrl = process.env.REACT_APP_API_URL || 'http://127.0.0.1:5001';
+        const url = `${apiUrl}/api/visualization?type=${chatType}`;
 
         try {
             const response = await fetch(url);
@@ -479,7 +483,7 @@ const MainDashboard = ({ onConversationSelect }) => {  // Add this prop
         localStorage.setItem("theme", theme);
     }, [theme]);
 
-    const url_states = "http://127.0.0.1:5001/api/states";
+    const url_states = `${apiUrl}/api/states`;
 
     useEffect(() => {
         const fetchStates = async () => {
@@ -1067,7 +1071,7 @@ const MainDashboard = ({ onConversationSelect }) => {  // Add this prop
         try {
             // Fetch all messages including branch information
             const response = await fetch(
-                `http://127.0.0.1:5001/api/messages_all/${encodeURIComponent(title)}?type=${chatType}`
+                `${apiUrl}/api/messages_all/${encodeURIComponent(title)}?type=${chatType}`
             );
             const data = await response.json();
 
@@ -1444,7 +1448,7 @@ const MainDashboard = ({ onConversationSelect }) => {  // Add this prop
         const encodedTitle = encodeURIComponent(title);
         try {
             const response = await axios.get(
-                `http://127.0.0.1:5001/api/messages_all/${encodedTitle}?type=${chatType}`,
+                `${apiUrl}/api/messages_all/${encodedTitle}?type=${chatType}`,
                 {
                     validateStatus: function (status) {
                         return status < 500;

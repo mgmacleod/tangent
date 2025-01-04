@@ -159,7 +159,8 @@ export const RecordingButton = ({
       formData.append('temperature', '0.0');
 
       console.log('Sending request to Whisper server...');
-      const response = await fetch('http://127.0.0.1:8080/inference', {
+      const inferenceUrl = process.env.REACT_APP_INFERENCE_URL || 'http://localhost:8080';
+      const response = await fetch(`${inferenceUrl}/inference`, {
         method: 'POST',
         body: formData,
       });

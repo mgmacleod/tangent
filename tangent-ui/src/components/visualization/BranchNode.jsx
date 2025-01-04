@@ -197,9 +197,13 @@ export const BranchNode = ({
             const prompt = `Based on this conversation, suggest a concise and descriptive title (max 5 words):\n\n${messages.map(m => `${m.role}: ${m.content}`).join('\n')
                 }`;
 
-            const response = await fetch('http://localhost:11434/api/generate', {
+            const ollamaUrl = process.env.REACT_APP_OLLAMA_URL || 'http://localhost:11434';
+            const response = await fetch(`${ollamaUrl}/api/generate`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                },
                 body: JSON.stringify({
                     model: selectedModel,
                     prompt,
@@ -263,9 +267,13 @@ export const BranchNode = ({
 
     const sendMessageToLLM = async (message) => {
         try {
-            const response = await fetch('http://localhost:11434/api/chat', {
+            const ollamaUrl = process.env.REACT_APP_OLLAMA_URL || 'http://localhost:11434';
+            const response = await fetch(`${ollamaUrl}/api/chat`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                },
                 body: JSON.stringify({
                     model: selectedModel,
                     messages: [...node.messages, { role: 'user', content: message }],

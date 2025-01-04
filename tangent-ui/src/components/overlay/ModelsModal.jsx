@@ -111,11 +111,13 @@ const ModelsModal = ({
 
   const categorizedModels = categorizeModels(models || []);
 
+  const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001';
+
   const fetchLibraryModels = async () => {
     setIsLoadingLibrary(true);
     setError("");
     try {
-      const response = await fetch("http://127.0.0.1:5001/api/models/library");
+      const response = await fetch(`${apiUrl}/api/models/library`);
       if (!response.ok)
         throw new Error(`Failed to fetch models: ${response.statusText}`);
       const data = await response.json();

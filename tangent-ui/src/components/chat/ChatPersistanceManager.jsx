@@ -28,7 +28,8 @@ export const ChatPersistenceManager = ({
 
   const loadSavedChats = async () => {
     try {
-      const response = await axios.get('http://localhost:5001/api/chats/list');
+      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001';
+      const response = await axios.get(`${apiUrl}/api/chats/list`);
       if (response.data.success) {
         setSavedChats(response.data.chats);
       }
@@ -56,7 +57,8 @@ export const ChatPersistenceManager = ({
         }
       };
 
-      const response = await axios.post('http://localhost:5001/api/chats/save', chatData);
+      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001';
+      const response = await axios.post(`${apiUrl}/api/chats/save`, chatData);
       if (response.data.success) {
         setActiveChat({
           id: response.data.chatId,
@@ -74,7 +76,8 @@ export const ChatPersistenceManager = ({
   const handleLoad = async (chatId) => {
     setIsLoading(true);
     try {
-      const response = await axios.get(`http://localhost:5001/api/chats/load/${chatId}`);
+      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001';
+      const response = await axios.get(`${apiUrl}/api/chats/load/${chatId}`);
       if (response.data.success) {
         const chatData = response.data.data;
         onLoadChat(chatData.nodes);
@@ -93,7 +96,8 @@ export const ChatPersistenceManager = ({
 
   const handleDelete = async (chatId) => {
     try {
-      const response = await axios.delete(`http://localhost:5001/api/chats/delete/${chatId}`);
+      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001';
+      const response = await axios.delete(`${apiUrl}/api/chats/delete/${chatId}`);
       if (response.data.success) {
         await loadSavedChats();
         if (activeChat?.id === chatId) {

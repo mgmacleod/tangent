@@ -207,9 +207,13 @@ export const IntegratedDashboard = () => {
 
   const handleModelClick = async (modelName) => {
     try {
-      const response = await fetch("http://localhost:11434/api/show", {
+      const ollamaUrl = process.env.REACT_APP_OLLAMA_URL || 'http://localhost:11434';
+      const response = await fetch(`${ollamaUrl}/api/show`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        },
         body: JSON.stringify({ model: modelName }),
       });
       const data = await response.json();
@@ -221,17 +225,23 @@ export const IntegratedDashboard = () => {
   };
 
   const handleDeleteModel = async (modelName) => {
-    if (
-      !window.confirm(`Are you sure you want to delete model "${modelName}"?`)
-    )
-      return;
+    if (!window.confirm(`Are you sure you want to delete model "${modelName}"?`)) return;
     try {
-      await fetch("http://localhost:11434/api/delete", {
+      const ollamaUrl = process.env.REACT_APP_OLLAMA_URL || 'http://localhost:11434';
+      await fetch(`${ollamaUrl}/api/delete`, {
         method: "DELETE",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        },
         body: JSON.stringify({ model: modelName }),
       });
-      const response = await fetch("http://localhost:11434/api/tags");
+      const response = await fetch(`${ollamaUrl}/api/tags`, {
+        headers: { 
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        }
+      });
       const data = await response.json();
       setLocalModels(data.models);
     } catch (error) {
@@ -247,15 +257,24 @@ export const IntegratedDashboard = () => {
     setIsPulling(true);
     setPullStatus("Starting download...");
     try {
-      const response = await fetch("http://localhost:11434/api/pull", {
+      const ollamaUrl = process.env.REACT_APP_OLLAMA_URL || 'http://localhost:11434';
+      const response = await fetch(`${ollamaUrl}/api/pull`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        },
         body: JSON.stringify({ model: pullModelName.trim(), stream: false }),
       });
       if (!response.ok) throw new Error("Failed to pull model");
       setPullStatus("Model downloaded successfully");
       setPullModelName("");
-      const tagsResponse = await fetch("http://localhost:11434/api/tags");
+      const tagsResponse = await fetch(`${ollamaUrl}/api/tags`, {
+        headers: { 
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        }
+      });
       const data = await tagsResponse.json();
       setLocalModels(data.models);
     } catch (error) {
@@ -288,7 +307,7 @@ export const IntegratedDashboard = () => {
       };
 
       const response = await axios.post(
-        "http://localhost:5001/api/chats/save",
+        `${apiUrl}/api/chats/save`,
         chatData
       );
       if (response.data.success) {
@@ -375,7 +394,8 @@ export const IntegratedDashboard = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const response = await fetch("http://127.0.0.1:5001/api/visualization");
+        const apiUrl = process.env.REACT_APP_API_URL || 'http://192.168.0.110:5001';
+        const response = await fetch(`${apiUrl}/api/visualization`);
         const responseData = await response.json();
         console.log("API Response:", responseData); // Debug log
 
@@ -416,8 +436,9 @@ export const IntegratedDashboard = () => {
       const baseTitle = chat.title.replace(/ \(Branch \d+\)$/, "");
 
       // Get the branched data
+      const apiUrl = process.env.REACT_APP_API_URL || 'http://192.168.0.110:5001';
       const response = await fetch(
-        `http://127.0.0.1:5001/api/messages_all/${encodeURIComponent(
+        `${apiUrl}/api/messages_all/${encodeURIComponent(
           baseTitle
         )}?type=claude`
       );

@@ -30,4 +30,4 @@ if __name__ == "__main__":
     ensure_directories()
     start_background_tasks()
 
-    app.run(debug=False, port=5001, use_reloader=False)
+    app.run(host='0.0.0.0', debug=False, port=5001, use_reloader=False)

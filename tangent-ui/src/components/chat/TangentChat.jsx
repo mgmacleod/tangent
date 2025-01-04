@@ -241,7 +241,13 @@ const TangentChat = ({
   useEffect(() => {
     const fetchModels = async () => {
       try {
-        const response = await fetch('http://localhost:11434/api/tags');
+        const ollamaUrl = process.env.REACT_APP_OLLAMA_URL || 'http://localhost:11434';
+        const response = await fetch(`${ollamaUrl}/api/tags`, {
+          headers: { 
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*"
+          }
+        });
         const data = await response.json();
         setModels(data.models);
 
@@ -398,9 +404,13 @@ const TangentChat = ({
         .join('\n');
 
       // 3) Send request
-      const response = await fetch('http://localhost:11434/api/generate', {
+      const ollamaUrl = process.env.REACT_APP_OLLAMA_URL || 'http://localhost:11434';
+      const response = await fetch(`${ollamaUrl}/api/generate`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        },
         body: JSON.stringify({
           model: selectedModel,
           prompt: formattedConversation + '\n\nHuman: ' + message + '\n\nAssistant:',

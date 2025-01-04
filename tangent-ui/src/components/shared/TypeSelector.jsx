@@ -14,8 +14,9 @@ export const ChatTypeSelector = ({ chatType, setChatType, onDataUpdate }) => {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState(null);
 
+    const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001';
     const fetchVisualizationData = useCallback(async (type) => {
-        const url = `http://127.0.0.1:5001/api/visualization?type=${type}`;
+        const url = `${apiUrl}/api/visualization?type=${type}`;
         console.log("Fetching from:", url);
 
         try {

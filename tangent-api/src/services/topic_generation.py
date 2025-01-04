@@ -1,7 +1,7 @@
 import requests
 import os
 
-GENERATION_MODEL = os.getenv("GENERATION_MODEL", "qwen2.5-coder:7b")
+from config import GENERATION_MODEL, OLLAMA_HOST
 
 
 def generate_topic_for_cluster(titles):
@@ -28,7 +28,7 @@ Provide ONLY the topic label, nothing else. Examples:
 
     try:
         response = requests.post(
-            "http://localhost:11434/api/generate",
+            f"{OLLAMA_HOST}/api/generate",
             json=payload,
             headers={"Content-Type": "application/json"},
         )

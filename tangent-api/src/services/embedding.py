@@ -1,12 +1,12 @@
 import requests
 import os
 
-EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "all-minilm")
+from config import EMBEDDING_MODEL, OLLAMA_HOST
 
 
 def get_embeddings(texts):
     """Get embeddings from the embedding API"""
-    url = "http://localhost:11434/api/embed"
+    url = f"{OLLAMA_HOST}/api/embed"
     payload = {"model": EMBEDDING_MODEL, "input": texts}
     headers = {"Content-Type": "application/json"}
 

@@ -1,7 +1,6 @@
 import requests
-import os
 
-GENERATION_MODEL = os.getenv("GENERATION_MODEL", "qwen2.5-coder:7b")
+from config import GENERATION_MODEL, OLLAMA_HOST
 
 
 def generate_reflection_for_cluster(struggle_texts):
@@ -27,7 +26,7 @@ Provide ONLY the reflection."""
 
     try:
         response = requests.post(
-            "http://localhost:11434/api/generate",
+            f"{OLLAMA_HOST}/api/generate",
             json=payload,
             headers={"Content-Type": "application/json"},
         )
