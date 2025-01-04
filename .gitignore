@@ -23,3 +23,5 @@ utils/voice_assistant.py
 yarn.lock
 npm.lock
 .vscode/
+
+.env
